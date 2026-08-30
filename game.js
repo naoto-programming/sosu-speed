@@ -90,20 +90,27 @@ function renderGame() {
   document.getElementById('deck-count-player1').textContent = `残り山札: ${gameState.players[0].deck.length}`;
   document.getElementById('deck-count-player2').textContent = `残り山札: ${gameState.players[1].deck.length}`;
 
+  // 手札反転設定がオンの場合、上側プレイヤーにも場の情報が読めるよう、
+  // 「両方向に表示」設定がオフでも合成数・出したカード一覧の反転表示は出す。
+  const showFlippedField = settings.showBothOrientations || settings.flipTopHand;
+
   const compositeText = settings.showQuotient
     ? computeQuotient(gameState.composite, gameState.playedLog)
     : gameState.composite;
   document.getElementById('field-composite').textContent = compositeText;
   const flippedComposite = document.getElementById('field-composite-flipped');
   flippedComposite.textContent = compositeText;
-  flippedComposite.hidden = !settings.showBothOrientations;
+  flippedComposite.hidden = !showFlippedField;
 
-  renderPlayedLog();
+  renderPlayedLog(showFlippedField);
 }
 
-function renderPlayedLog() {
-  const container = document.getElementById('field-played-log');
-  container.textContent = gameState.playedLog.length > 0 ? gameState.playedLog.join(' × ') : '';
+function renderPlayedLog(showFlipped) {
+  const text = gameState.playedLog.length > 0 ? gameState.playedLog.join(' × ') : '';
+  document.getElementById('field-played-log').textContent = text;
+  const flippedLog = document.getElementById('field-played-log-flipped');
+  flippedLog.textContent = text;
+  flippedLog.hidden = !showFlipped;
 }
 
 function renderHand(containerId, hand, playerIndex) {

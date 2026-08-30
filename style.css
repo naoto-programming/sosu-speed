@@ -134,7 +134,8 @@ label.setting-row input[type="number"] {
   font-size: 3rem;
   font-weight: bold;
 }
-.composite-flipped {
+.composite-flipped,
+.played-log-flipped {
   transform: rotate(180deg);
 }
 #hand-player2.flipped {
