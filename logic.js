@@ -32,6 +32,12 @@ function enumerateComposites(max, primes) {
   return pool;
 }
 
+function pickNextComposite(pool, previous, randomFn = Math.random) {
+  const candidates = pool.length > 1 ? pool.filter((n) => n !== previous) : pool;
+  const index = Math.floor(randomFn() * candidates.length);
+  return candidates[index];
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PRIMES,
@@ -41,5 +47,6 @@ if (typeof module !== 'undefined' && module.exports) {
     factorizeWithAllowedPrimes,
     isValidComposite,
     enumerateComposites,
+    pickNextComposite,
   };
 }

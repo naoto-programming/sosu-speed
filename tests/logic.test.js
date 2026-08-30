@@ -5,6 +5,7 @@ const {
   factorizeWithAllowedPrimes,
   isValidComposite,
   enumerateComposites,
+  pickNextComposite,
 } = require('../logic.js');
 
 test('factorizeWithAllowedPrimes: 60 は 2^2 * 3 * 5', () => {
@@ -41,4 +42,20 @@ test('isValidComposite: 1 は無効', () => {
 
 test('enumerateComposites: 10以下で 2,3,5,7,11 のみからなる合成数の一覧', () => {
   assert.deepEqual(enumerateComposites(10, PRIMES), [4, 6, 8, 9, 10]);
+});
+
+test('pickNextComposite: 直前と異なる値を選ぶ', () => {
+  const result = pickNextComposite([4, 6, 8], 6, () => 0);
+  assert.equal(result, 4);
+});
+
+test('pickNextComposite: プール内に候補が1つしかない場合は直前と同じ値でも返す', () => {
+  const result = pickNextComposite([4], 4, () => 0);
+  assert.equal(result, 4);
+});
+
+test('pickNextComposite: randomFnの値に応じて候補内の位置が変わる', () => {
+  const result = pickNextComposite([4, 6, 8, 9], 6, () => 0.99);
+  // previous=6を除外した候補は [4, 8, 9]、末尾の9が選ばれる
+  assert.equal(result, 9);
 });
