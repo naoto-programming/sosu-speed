@@ -9,6 +9,7 @@ const {
   buildDeck,
   dealHand,
   HAND_SIZE,
+  createGameState,
 } = require('../logic.js');
 
 test('factorizeWithAllowedPrimes: 60 は 2^2 * 3 * 5', () => {
@@ -75,4 +76,18 @@ test('dealHand: 先頭HAND_SIZE枚を手札に、残りを山札にする', () =
   assert.deepEqual(result.hand, [2, 2, 3, 5, 7]);
   assert.deepEqual(result.deck, [11, 3, 'STOP']);
   assert.equal(result.hand.length, HAND_SIZE);
+});
+
+test('createGameState: 決定的な入力から一貫した初期状態を作る', () => {
+  const settings = { maxComposite: 10, countPerPrime: { 2: 2, 3: 1 } };
+  const identity = (arr) => arr;
+  const state = createGameState(settings, () => 0, identity);
+
+  assert.equal(state.players.length, 2);
+  assert.equal(state.players[0].hand.length, 4);
+  assert.equal(state.winner, null);
+  assert.equal(state.previousComposite, null);
+  assert.deepEqual(state.compositePool, [4, 6, 8, 9, 10]);
+  assert.equal(state.composite, 4);
+  assert.deepEqual(state.remaining, { 2: 2 });
 });

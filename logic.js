@@ -61,6 +61,25 @@ function dealHand(deck) {
   return { hand: deck.slice(0, HAND_SIZE), deck: deck.slice(HAND_SIZE) };
 }
 
+function createGameState(settings, randomFn, shuffleFn) {
+  const primes = PRIMES;
+  const compositePool = enumerateComposites(settings.maxComposite, primes);
+  const players = [0, 1].map(() => {
+    const deck = buildDeck(settings.countPerPrime, primes, shuffleFn);
+    return dealHand(deck);
+  });
+  const composite = pickNextComposite(compositePool, null, randomFn);
+  const remaining = factorizeWithAllowedPrimes(composite, primes);
+  return {
+    players,
+    composite,
+    remaining,
+    previousComposite: null,
+    compositePool,
+    winner: null,
+  };
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PRIMES,
@@ -74,5 +93,6 @@ if (typeof module !== 'undefined' && module.exports) {
     fisherYatesShuffle,
     buildDeck,
     dealHand,
+    createGameState,
   };
 }
