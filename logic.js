@@ -1,0 +1,44 @@
+const PRIMES = [2, 3, 5, 7, 11];
+const DEFAULT_MAX_COMPOSITE = 1100;
+const DEFAULT_COUNT_PER_PRIME = { 2: 6, 3: 6, 5: 6, 7: 6, 11: 6 };
+const HAND_SIZE = 5;
+
+function factorizeWithAllowedPrimes(n, primes) {
+  let remaining = n;
+  const factors = {};
+  for (const p of primes) {
+    while (remaining % p === 0) {
+      factors[p] = (factors[p] || 0) + 1;
+      remaining /= p;
+    }
+  }
+  return remaining === 1 ? factors : null;
+}
+
+function isValidComposite(n, primes) {
+  if (n < 2) return false;
+  const factors = factorizeWithAllowedPrimes(n, primes);
+  if (!factors) return false;
+  const total = Object.values(factors).reduce((sum, c) => sum + c, 0);
+  return total >= 2;
+}
+
+function enumerateComposites(max, primes) {
+  const pool = [];
+  for (let n = 4; n <= max; n++) {
+    if (isValidComposite(n, primes)) pool.push(n);
+  }
+  return pool;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    PRIMES,
+    DEFAULT_MAX_COMPOSITE,
+    DEFAULT_COUNT_PER_PRIME,
+    HAND_SIZE,
+    factorizeWithAllowedPrimes,
+    isValidComposite,
+    enumerateComposites,
+  };
+}
