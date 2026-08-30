@@ -155,6 +155,17 @@ function removeOneFromHand(hand, value) {
   return newHand;
 }
 
+function replaceCardInHand(hand, value, replacement) {
+  const index = hand.indexOf(value);
+  const newHand = [...hand];
+  if (replacement === undefined) {
+    newHand.splice(index, 1);
+  } else {
+    newHand[index] = replacement;
+  }
+  return newHand;
+}
+
 function drawOne(deck) {
   const [card, ...rest] = deck;
   return { card, deck: rest };
@@ -185,16 +196,18 @@ function applyPlay(state, playerIndex, value, randomFn = Math.random) {
   const player = state.players[playerIndex];
   if (!player.hand.includes(value)) return state;
 
-  const handAfterPlay = removeOneFromHand(player.hand, value);
   const remainingAfterPlay = decrementRemaining(state.remaining, value);
   const { card, deck: deckAfterDraw } = drawOne(player.deck);
 
   let winner = null;
-  let finalHand = handAfterPlay;
+  let finalHand;
   if (card === 'STOP') {
     winner = playerIndex;
-  } else if (card !== undefined) {
-    finalHand = [...handAfterPlay, card];
+    finalHand = removeOneFromHand(player.hand, value);
+  } else {
+    // 出したカードがあった位置にそのまま新しく引いたカードを補充する。
+    // 他のカードを詰め直さないことで、手札の見た目の並びが不必要に変わらないようにする。
+    finalHand = replaceCardInHand(player.hand, value, card);
   }
 
   const updatedPlayers = state.players.map((p, i) =>
@@ -258,6 +271,7 @@ if (typeof module !== 'undefined' && module.exports) {
     computeQuotient,
     canPlay,
     removeOneFromHand,
+    replaceCardInHand,
     drawOne,
     decrementRemaining,
     isCleared,

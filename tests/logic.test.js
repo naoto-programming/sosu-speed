@@ -277,6 +277,22 @@ test('pickPlayableComposite: 出せる候補が複数あるとき、頻度・バ
   assert.deepEqual(result.remaining, { 2: 1, 3: 1 });
 });
 
+test('applyPlay: 出したカードの位置に新しく引いたカードを補充し、他のカードの並びは詰め直さない', () => {
+  const state = makeState({
+    players: [
+      { hand: [2, 3, 5, 7, 11], deck: [3, 'STOP'] },
+      { hand: [2, 3, 5, 7, 11], deck: [11, 'STOP'] },
+    ],
+    composite: 60,
+    remaining: { 2: 2, 3: 1, 5: 1 },
+    compositePool: [60, 4, 6],
+  });
+  const result = applyPlay(state, 0, 5, () => 0); // 手札index2の"5"を出す
+  // 5があった位置(index2)にだけ新しく引いた3が入り、他のカード(2,3,7,11)は動かない
+  assert.deepEqual(result.players[0].hand, [2, 3, 3, 7, 11]);
+  assert.deepEqual(result.remaining, { 2: 2, 3: 1 });
+});
+
 test('applyPlay: 両者とも出せない状態になったら合成数が強制的に切り替わる', () => {
   const state = makeState({
     players: [
