@@ -80,6 +80,87 @@ function createGameState(settings, randomFn, shuffleFn) {
   };
 }
 
+function canPlay(remaining, value) {
+  return (remaining[value] || 0) > 0;
+}
+
+function removeOneFromHand(hand, value) {
+  const index = hand.indexOf(value);
+  const newHand = [...hand];
+  newHand.splice(index, 1);
+  return newHand;
+}
+
+function drawOne(deck) {
+  const [card, ...rest] = deck;
+  return { card, deck: rest };
+}
+
+function decrementRemaining(remaining, value) {
+  const newRemaining = { ...remaining };
+  newRemaining[value] -= 1;
+  if (newRemaining[value] <= 0) delete newRemaining[value];
+  return newRemaining;
+}
+
+function isCleared(remaining) {
+  return Object.keys(remaining).length === 0;
+}
+
+function hasAnyPlayable(hand, remaining) {
+  return hand.some((v) => canPlay(remaining, v));
+}
+
+function bothStuck(hand0, hand1, remaining) {
+  return !hasAnyPlayable(hand0, remaining) && !hasAnyPlayable(hand1, remaining);
+}
+
+function applyPlay(state, playerIndex, value, randomFn = Math.random) {
+  if (state.winner !== null) return state;
+  if (!canPlay(state.remaining, value)) return state;
+  const player = state.players[playerIndex];
+  if (!player.hand.includes(value)) return state;
+
+  const handAfterPlay = removeOneFromHand(player.hand, value);
+  const remainingAfterPlay = decrementRemaining(state.remaining, value);
+  const { card, deck: deckAfterDraw } = drawOne(player.deck);
+
+  let winner = null;
+  let finalHand = handAfterPlay;
+  if (card === 'STOP') {
+    winner = playerIndex;
+  } else if (card !== undefined) {
+    finalHand = [...handAfterPlay, card];
+  }
+
+  const updatedPlayers = state.players.map((p, i) =>
+    i === playerIndex ? { hand: finalHand, deck: deckAfterDraw } : p
+  );
+
+  if (winner !== null) {
+    return { ...state, players: updatedPlayers, winner };
+  }
+
+  const otherHand = updatedPlayers[1 - playerIndex].hand;
+  const cleared = isCleared(remainingAfterPlay);
+  const stuck = !cleared && bothStuck(finalHand, otherHand, remainingAfterPlay);
+
+  if (cleared || stuck) {
+    const nextComposite = pickNextComposite(state.compositePool, state.composite, randomFn);
+    const nextRemaining = factorizeWithAllowedPrimes(nextComposite, PRIMES);
+    return {
+      ...state,
+      players: updatedPlayers,
+      composite: nextComposite,
+      remaining: nextRemaining,
+      previousComposite: state.composite,
+      winner: null,
+    };
+  }
+
+  return { ...state, players: updatedPlayers, remaining: remainingAfterPlay, winner: null };
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PRIMES,
@@ -94,5 +175,13 @@ if (typeof module !== 'undefined' && module.exports) {
     buildDeck,
     dealHand,
     createGameState,
+    canPlay,
+    removeOneFromHand,
+    drawOne,
+    decrementRemaining,
+    isCleared,
+    hasAnyPlayable,
+    bothStuck,
+    applyPlay,
   };
 }
