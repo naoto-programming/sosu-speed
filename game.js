@@ -1,3 +1,7 @@
+// タッチスクリーンで2箇所を同時に押すと、OS/ブラウザが「二本指タップ=右クリック」と
+// 解釈してコンテキストメニューを出すことがある。スピードゲームでは意味を持たない挙動なので無効化する。
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+
 let settings = {
   countPerPrime: { ...DEFAULT_COUNT_PER_PRIME },
   maxComposite: DEFAULT_MAX_COMPOSITE,
