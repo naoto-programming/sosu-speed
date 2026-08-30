@@ -14,7 +14,8 @@ function readSettingsFromInputs() {
   for (const p of PRIMES) {
     countPerPrime[p] = Number(document.getElementById(`count-${p}`).value) || 0;
   }
-  const maxComposite = Number(document.getElementById('max-composite').value) || DEFAULT_MAX_COMPOSITE;
+  const rawMaxComposite = Number(document.getElementById('max-composite').value) || DEFAULT_MAX_COMPOSITE;
+  const maxComposite = Math.min(rawMaxComposite, 100000);
   return { countPerPrime, maxComposite };
 }
 
@@ -39,19 +40,21 @@ let gameState = null;
 
 function startGame() {
   settings = readSettingsFromInputs();
+
+  const totalCards = PRIMES.reduce((sum, p) => sum + (settings.countPerPrime[p] || 0), 0);
+  if (totalCards < HAND_SIZE) {
+    settings.countPerPrime = { ...DEFAULT_COUNT_PER_PRIME };
+    writeSettingsToInputs();
+    alert(`カードの総数が手札の枚数(${HAND_SIZE}枚)に満たないため、デッキ構成をデフォルトに戻しました。`);
+  }
+
   const minRequired = minimumMaxCompositeFor(settings.countPerPrime, PRIMES);
   if (settings.maxComposite < minRequired) {
     settings.maxComposite = minRequired;
     document.getElementById('max-composite').value = settings.maxComposite;
     alert(`合成数の最大値が、山札の素数構成に対して小さすぎたため、${minRequired}に引き上げました。`);
   }
-  let pool = enumerateComposites(settings.maxComposite, PRIMES);
-  if (pool.length === 0) {
-    settings.maxComposite = 4;
-    pool = enumerateComposites(settings.maxComposite, PRIMES);
-    document.getElementById('max-composite').value = settings.maxComposite;
-    alert('合成数の最大値が小さすぎたため、4に引き上げました。');
-  }
+
   gameState = createGameState(settings, Math.random, fisherYatesShuffle);
   showScreen('screen-game');
   renderGame();
@@ -118,3 +121,4 @@ document.getElementById('button-START').addEventListener('click', () => {
 });
 document.getElementById('button-START_FROM_SETTINGS').addEventListener('click', startGame);
 document.getElementById('button-RESTART').addEventListener('click', () => showScreen('screen-title'));
+document.getElementById('button-QUIT_TO_TITLE').addEventListener('click', () => showScreen('screen-title'));

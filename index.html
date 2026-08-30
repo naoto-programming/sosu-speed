@@ -26,7 +26,7 @@
       <label class="setting-row" for="count-5"><span>5 の枚数</span><input id="count-5" type="number" min="0" value="6" /></label>
       <label class="setting-row" for="count-7"><span>7 の枚数</span><input id="count-7" type="number" min="0" value="6" /></label>
       <label class="setting-row" for="count-11"><span>11 の枚数</span><input id="count-11" type="number" min="0" value="6" /></label>
-      <label class="setting-row" for="max-composite"><span>合成数の最大値</span><input id="max-composite" type="number" min="4" value="1100" /></label>
+      <label class="setting-row" for="max-composite"><span>合成数の最大値</span><input id="max-composite" type="number" min="4" max="100000" value="1100" /></label>
     </div>
     <div class="button-wrapper">
       <button class="menu-button" id="button-RESET_DEFAULTS">デフォルトに戻す</button>
@@ -36,6 +36,7 @@
   </section>
 
   <section id="screen-game" hidden>
+    <button class="menu-button" id="button-QUIT_TO_TITLE">タイトルに戻る</button>
     <div class="hand-row" id="hand-player2"></div>
     <div class="deck-count" id="deck-count-player2"></div>
 

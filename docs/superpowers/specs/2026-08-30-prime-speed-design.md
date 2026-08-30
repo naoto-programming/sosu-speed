@@ -69,21 +69,29 @@ GameState {
 起動時（または設定変更時）に一度だけ計算：
 
 ```js
-function enumerateComposites(max) {
+function enumerateComposites(max, primes) {
   const pool = [];
   for (let n = 4; n <= max; n++) {
-    const factors = factorizeWithAllowedPrimes(n, PRIMES); // 2,3,5,7,11だけで割り切れるか試し割り
-    if (factors && sumCounts(factors) >= 2) pool.push(n); // 素数自身(1個の素因数)と1は除外
+    if (isValidComposite(n, primes)) pool.push(n); // 許可された素数だけで分解でき、素因数の総数が2以上のものだけ採用
   }
   return pool;
 }
 ```
 
-これにより場に出る合成数は必ず現在のルールの素数カードだけで分解可能になる（デッドロック防止）。
+これにより場に出る合成数は必ず現在のルールの素数カードだけで分解可能になる。ただし、これだけでは「山札の素数構成に対して合成数の最大値が小さすぎる」ケース（詳細は「エッジケース」参照）を防げないため、`minimumMaxCompositeFor` による事前チェックと組み合わせて使う。
+
+`enumerateComposites` は `max` に比例した回数の試し割りを行うため、設定画面の合成数の最大値入力には `max="100000"` を設け、極端に大きい値による実行時間の肥大化を防いでいる。
 
 ### 次の合成数を選ぶ
 
-`compositePool` から `previousComposite` と異なる値をランダムに1つ選ぶ。選んだら `remaining` をその値の素因数分解結果（例: 60 → `{2:2, 3:1, 5:1}`）で初期化する。
+合成数プールから単純にランダム選択すると、選ばれた合成数がどちらの手札でも出せない（＝即座に膠着する）場合がある。これを避けるため `pickPlayableComposite(compositePool, previous, hand0, hand1, randomFn)` は次の手順で選ぶ：
+
+1. `compositePool` を「その合成数の素因数分解結果に対して、少なくとも一方の手札に出せるカードがある」もの（＝`bothStuck` が false になるもの）だけに絞り込む
+2. 絞り込んだ結果が空なら（理論上は起こらないはずだが安全のため）元の `compositePool` 全体にフォールバックする
+3. 絞り込み後のプールに対して `pickNextComposite` を呼び、`previousComposite` と異なる値を（候補が2つ以上あれば）ランダムに1つ選ぶ
+4. 選んだ値の素因数分解結果（例: 60 → `{2:2, 3:1, 5:1}`）で `remaining` を初期化する
+
+初期化時（`createGameState`）と、クリア・膠着判定で合成数を切り替えるとき（`applyPlay`）の両方でこの `pickPlayableComposite` を使うことで、場に出た瞬間から膠着している合成数が選ばれることはない。
 
 ### カードを出す（クリックハンドラ）
 
@@ -104,11 +112,14 @@ function enumerateComposites(max) {
 
 ## エッジケース
 
-- 設定で合成数の最大値を小さくしすぎて `compositePool` が空になる場合: 入力に `min="4"` を設け、空になった場合は最大値を自動的に必要最小値まで引き上げる（アラート表示）
-- 山札枚数設定を0にした素数がある場合: その素数は合成数の分解結果に出現しても手札・山札のどこにも存在しないため詰み判定が正しく機能する（膠着扱いになるだけで壊れない）
+- **合成数の最大値が、山札の素数構成に対して小さすぎる場合**: `minimumMaxCompositeFor(countPerPrime, primes)` が「山札に含まれる素数のうち最大のものの2倍」（例: 11のカードが1枚でもあれば22）を必要最小値として返す。`startGame()` はこれと設定値を比較し、設定値が下回っていれば必要最小値まで自動的に引き上げてアラート表示する。入力には `min="4"` に加え `max="100000"` も設けている。
+- **山札の総枚数が手札枚数(`HAND_SIZE`=5)未満の場合**: `buildDeck` はシャッフル後の実カード列の末尾に必ず `'STOP'` を1枚追加するが、`dealHand` は先頭 `HAND_SIZE` 枚を無条件に手札へ切り出すため、実カード枚数の合計が4枚以下だと配布直後の手札に `'STOP'` が混入し、山札が空になって以後誰も `'STOP'` を引けず永久に手詰まりになる（設定画面の各カード枚数入力は `min="0"` のためUIから到達可能）。これを防ぐため `startGame()` は `countPerPrime` を確定させた直後、`minimumMaxCompositeFor` のチェックより前に総枚数を計算し、`HAND_SIZE` 未満ならデッキ構成をデフォルト（`DEFAULT_COUNT_PER_PRIME`、各6枚）に戻してアラート表示する。
+- 山札枚数設定を0にした素数がある場合（かつ総枚数は`HAND_SIZE`以上を維持している場合）: その素数は合成数の分解結果に出現しても手札・山札のどこにも存在しないため詰み判定が正しく機能する（膠着扱いになるだけで壊れない）
 
 ## ファイル構成
 
-- `index.html`: 画面構造（4画面をすべて記述し、`hidden`属性で切り替え）
+- `index.html`: 画面構造（4画面をすべて記述し、`hidden`属性で切り替え）。ゲーム画面には常時「タイトルに戻る」ボタン(`button-QUIT_TO_TITLE`)を配置する
 - `style.css`: nabla-game-master準拠の配色・フォント・ボタン・カードスタイル
-- `game.js`: 上記ロジック全部（状態管理、DOM描画、イベントハンドラ）。フレームワーク不使用のバニラJS
+- `logic.js`: DOMに依存しない純粋なゲームロジック（素因数分解、合成数プールの列挙・選択、山札生成、手札配布、状態遷移である`createGameState`/`applyPlay`など）を独立ファイルとして分離。Node.jsの`node:test`から`require`して単体テストできるよう、`module.exports`でエクスポートする
+- `game.js`: DOM描画・イベントハンドラ・設定の読み書きなど画面側のロジック。`logic.js`が公開する関数・定数を利用する。フレームワーク不使用のバニラJS
+- `tests/logic.test.js`: `logic.js`の単体テスト（`node --test tests/logic.test.js`で実行）

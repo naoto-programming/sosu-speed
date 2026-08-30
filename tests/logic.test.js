@@ -193,14 +193,11 @@ test('pickPlayableComposite: 最初から出せる候補ならそれを返す', 
   assert.deepEqual(result.remaining, { 2: 2 });
 });
 
-test('pickPlayableComposite: プール内に出せる候補が1つしかなくても必ず見つける(retry-loop版の既知バグの再現ケース)', () => {
-  // pool=[4,6,8]。6だけが両手札(3のみ)で出せる(4,8はどちらも2を要求するが手札に2が無い)。
-  // 修正前のretry-loopアルゴリズムでは、pickNextCompositeが「直前の1候補」しか除外しないため、
-  // 既に試して失敗した候補(例:4)がpreviousから外れて後の試行で再び選ばれることがあり、
-  // maxAttemptsを使い果たして6に一度も到達できないまま終わる可能性があった。
-  // 先にpool全体を「出せる候補」だけへfilterしてから選ぶ新アルゴリズムでは、
-  // randomFnの返す値に関わらず必ず6を返す。
-  const result = pickPlayableComposite([4, 6, 8], null, [3, 3], [3, 3], () => 0);
+test('pickPlayableComposite: プール内に出せる候補が1つしかない場合、乱数の並びに関わらず必ずそれを返す(retry-loop版なら見逃しうるケース)', () => {
+  let calls = 0;
+  const sequence = [0, 0.6, 0]; // 修正前のretry-loopならこの乱数列で 4→8→4 と巡り、6に一度も到達できない
+  const randomFn = () => sequence[calls++];
+  const result = pickPlayableComposite([4, 6, 8], null, [3, 3], [3, 3], randomFn);
   assert.equal(result.composite, 6);
   assert.deepEqual(result.remaining, { 2: 1, 3: 1 });
 });
@@ -233,13 +230,19 @@ test('minimumMaxCompositeFor: すべての素数が0枚なら4を返す(縮退�
 test('applyPlay: 両者とも出せない状態になったら合成数が強制的に切り替わる', () => {
   const state = makeState({
     players: [
-      { hand: [7, 7, 7, 7, 7], deck: [7, 'STOP'] },
+      { hand: [2, 7, 7, 7, 7], deck: [7, 'STOP'] },
       { hand: [11, 11, 11, 11, 11], deck: [11, 'STOP'] },
     ],
     composite: 60,
-    remaining: { 2: 2, 3: 1, 5: 1 }, // 7も11もここに含まれない
+    remaining: { 2: 1, 3: 1 },
+    compositePool: [60, 21],
   });
-  // プレイヤー0が7を出そうとしても remaining に7が無いので不成立、
-  // 代わりに直接 bothStuck を検証する
-  assert.equal(bothStuck(state.players[0].hand, state.players[1].hand, state.remaining), true);
+  // Aが2を出すと remaining は {3:1} になるが、
+  // Aの手札は2を出して7を引いた後 [7,7,7,7,7]、Bの手札は [11,11,11,11,11] で
+  // どちらも3を出せない(bothStuck)ため、21(=3×7)への強制切り替えが起きるはず。
+  // 21ならAの手札(7を含む)で出せる。
+  const result = applyPlay(state, 0, 2, () => 0);
+  assert.equal(result.composite, 21);
+  assert.equal(result.previousComposite, 60);
+  assert.deepEqual(result.remaining, { 3: 1, 7: 1 });
 });
