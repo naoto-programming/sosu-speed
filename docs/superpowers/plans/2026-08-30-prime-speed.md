@@ -1159,18 +1159,18 @@ Expected: FAIL（`pickPlayableComposite is not a function`、および`createGam
 
 ```js
 function pickPlayableComposite(compositePool, previous, hand0, hand1, randomFn) {
-  let candidate = previous;
-  let remaining;
-  const maxAttempts = compositePool.length;
-  let attempts = 0;
-  do {
-    candidate = pickNextComposite(compositePool, candidate, randomFn);
-    remaining = factorizeWithAllowedPrimes(candidate, PRIMES);
-    attempts += 1;
-  } while (bothStuck(hand0, hand1, remaining) && attempts < maxAttempts);
-  return { composite: candidate, remaining };
+  const playable = compositePool.filter((n) => {
+    const factors = factorizeWithAllowedPrimes(n, PRIMES);
+    return !bothStuck(hand0, hand1, factors);
+  });
+  const pool = playable.length > 0 ? playable : compositePool;
+  const composite = pickNextComposite(pool, previous, randomFn);
+  const remaining = factorizeWithAllowedPrimes(composite, PRIMES);
+  return { composite, remaining };
 }
 ```
+
+（元々は「候補を1つずつ試して駄目なら次へ」というループ案だったが、`pickNextComposite`が除外するのは直前に試した1件だけなので、悪い候補同士を行ったり来たりして`compositePool.length`回の試行を使い切り、実際には出せる候補に一度も当たらないまま終わる可能性があった。「出せる候補だけを先にすべて絞り込んでからランダムに選ぶ」方式にすることで、プール内に出せる候補が1つでもあれば必ずそれが選ばれることを保証する。）
 
 `createGameState`内の該当部分を置き換える:
 
@@ -1266,4 +1266,125 @@ Expected: PASS（全テスト）
 ```bash
 git add -A
 git commit -m "chore: verify deadlock fix with full playthrough" --allow-empty
+```
+
+---
+
+### Task 14: 合成数の最大値と素数設定の整合性チェック（もう一つのデッドロック原因の修正）
+
+**背景:** Task 13のPlaywright通しプレイで、`maxComposite`を素数11が出現できる最小値(2×11=22)未満の20に設定した状態で、両プレイヤーの手札が偶然すべて「11」のカードだけになり、ゲームが完全に停止する事象が再現した。原因はTask12の`pickPlayableComposite`のバグではなく、より根本的な設定不整合: `countPerPrime[p] > 0`な素数pについて、`2p`(pを因数に持つ最小の合成数)が`maxComposite`を超えている場合、そのpのカードは山札・手札に存在するのに合成数として一度も出現できず、恒久的に「デッドカード」になる。両プレイヤーの手札がそうしたデッドカードだけになった瞬間、`pickPlayableComposite`は合成数プール全体を探しても出せる合成数が1つも無いため、原理的に手詰まりを解消できない(フォールバックで出せない合成数を返さざるを得ない)。
+
+**修正方針:** 対戦開始時に、山札に含まれる(`countPerPrime[p] > 0`な)すべての素数pについて、`maxComposite >= 2 * max(そのようなp)`を満たすように`maxComposite`を自動的に引き上げる。これにより、山札に存在するどの素数についても「その素数を因数に持つ合成数」が必ずプールに1つ以上存在することが保証され、`pickPlayableComposite`のフォールバック分岐(出せる合成数が1つも無い場合)が到達不能になる。
+
+**Files:**
+- Modify: `logic.js`
+- Modify: `tests/logic.test.js`
+- Modify: `game.js`
+
+**Interfaces:**
+- Consumes: `PRIMES`（既存）
+- Produces: `minimumMaxCompositeFor(countPerPrime, primes) -> number`
+- Modifies: `game.js`の`startGame()`（既存の「合成数プールが空なら4に引き上げる」チェックの前に、この新しいチェックを追加する）
+
+- [ ] **Step 1: 失敗するテストを書く**
+
+`tests/logic.test.js` に追記:
+
+```js
+const { minimumMaxCompositeFor } = require('../logic.js');
+
+test('minimumMaxCompositeFor: 山札に含まれる最大の素数の2倍を返す', () => {
+  // 11のカードが1枚でもあれば、11を因数に持つ最小の合成数22が出せる必要がある
+  assert.equal(minimumMaxCompositeFor({ 2: 6, 3: 6, 5: 6, 7: 6, 11: 6 }, PRIMES), 22);
+});
+
+test('minimumMaxCompositeFor: 一部の素数の枚数が0なら計算対象から除外する', () => {
+  // 7と11を山札に含めない場合、最大でも5の2倍=10あれば足りる
+  assert.equal(minimumMaxCompositeFor({ 2: 6, 3: 6, 5: 6, 7: 0, 11: 0 }, PRIMES), 10);
+});
+
+test('minimumMaxCompositeFor: すべての素数が0枚なら4を返す(縮退ケースのフォールバック)', () => {
+  assert.equal(minimumMaxCompositeFor({ 2: 0, 3: 0, 5: 0, 7: 0, 11: 0 }, PRIMES), 4);
+});
+```
+
+- [ ] **Step 2: テストを実行して失敗を確認する**
+
+Run: `node --test tests/logic.test.js`
+Expected: FAIL（`minimumMaxCompositeFor is not a function`）
+
+- [ ] **Step 3: `logic.js`に実装を追加する**
+
+`enumerateComposites`の定義の直後（`pickNextComposite`の前）に追加:
+
+```js
+function minimumMaxCompositeFor(countPerPrime, primes) {
+  const activePrimes = primes.filter((p) => (countPerPrime[p] || 0) > 0);
+  if (activePrimes.length === 0) return 4;
+  return 2 * Math.max(...activePrimes);
+}
+```
+
+`module.exports`に`minimumMaxCompositeFor,`を追加する。
+
+- [ ] **Step 4: テストを実行して成功を確認する**
+
+Run: `node --test tests/logic.test.js`
+Expected: PASS（全テスト）
+
+- [ ] **Step 5: `game.js`の`startGame()`を修正する**
+
+既存の`startGame()`本体:
+
+```js
+function startGame() {
+  settings = readSettingsFromInputs();
+  let pool = enumerateComposites(settings.maxComposite, PRIMES);
+  if (pool.length === 0) {
+    settings.maxComposite = 4;
+    pool = enumerateComposites(settings.maxComposite, PRIMES);
+    document.getElementById('max-composite').value = settings.maxComposite;
+    alert('合成数の最大値が小さすぎたため、4に引き上げました。');
+  }
+  gameState = createGameState(settings, Math.random, fisherYatesShuffle);
+  showScreen('screen-game');
+  renderGame();
+}
+```
+
+を次のように置き換える(山札に含まれる素数に対する整合性チェックを先頭に追加):
+
+```js
+function startGame() {
+  settings = readSettingsFromInputs();
+  const minRequired = minimumMaxCompositeFor(settings.countPerPrime, PRIMES);
+  if (settings.maxComposite < minRequired) {
+    settings.maxComposite = minRequired;
+    document.getElementById('max-composite').value = settings.maxComposite;
+    alert(`合成数の最大値が、山札の素数構成に対して小さすぎたため、${minRequired}に引き上げました。`);
+  }
+  let pool = enumerateComposites(settings.maxComposite, PRIMES);
+  if (pool.length === 0) {
+    settings.maxComposite = 4;
+    pool = enumerateComposites(settings.maxComposite, PRIMES);
+    document.getElementById('max-composite').value = settings.maxComposite;
+    alert('合成数の最大値が小さすぎたため、4に引き上げました。');
+  }
+  gameState = createGameState(settings, Math.random, fisherYatesShuffle);
+  showScreen('screen-game');
+  renderGame();
+}
+```
+
+（`pool.length === 0`のチェックは、`minRequired`の保証によって理論上は到達不能になるが、念のため防御的に残す）
+
+- [ ] **Step 6: ブラウザで手動確認する**
+
+設定画面で「合成数の最大値」を20、11の枚数を多め(例: 30枚)にしてから対戦開始すると、アラートで「22に引き上げました」のように表示され、22以上の値で対戦が始まることを確認する。
+
+- [ ] **Step 7: コミット**
+
+```bash
+git add logic.js tests/logic.test.js game.js
+git commit -m "fix: ensure maxComposite is large enough for every prime in the deck to prevent dead-card deadlock"
 ```
