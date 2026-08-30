@@ -134,6 +134,12 @@ label.setting-row input[type="number"] {
   font-size: 3rem;
   font-weight: bold;
 }
+.composite-flipped {
+  transform: rotate(180deg);
+}
+#hand-player2.flipped {
+  transform: rotate(180deg);
+}
 .played-log {
   font-family: 'Roboto Slab', serif;
   font-size: 1.25rem;

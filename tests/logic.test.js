@@ -243,6 +243,40 @@ test('minimumMaxCompositeFor: すべての素数が0枚なら4を返す(縮退�
   assert.equal(minimumMaxCompositeFor({ 2: 0, 3: 0, 5: 0, 7: 0, 11: 0 }, PRIMES), 4);
 });
 
+const { computeCompositeWeight, pickWeightedComposite } = require('../logic.js');
+
+test('computeCompositeWeight: 出した後に山札含め手札に多く残っている素数ほど重みが大きい(頻度)', () => {
+  const weightHigh = computeCompositeWeight({ 3: 1 }, [3, 3], [3, 3]); // 3が合計4枚
+  const weightLow = computeCompositeWeight({ 3: 1 }, [3], [3]); // 3が合計2枚
+  assert.ok(weightHigh > weightLow, `頻度が高い方(${weightHigh})が低い方(${weightLow})より重いはず`);
+});
+
+test('computeCompositeWeight: 出せる枚数が両者で均等なほど重みが大きい(バランス)', () => {
+  const weightUnbalanced = computeCompositeWeight({ 3: 1 }, [3, 3], []); // 3が2枚とも片方に偏る
+  const weightBalanced = computeCompositeWeight({ 3: 1 }, [3], [3]); // 3が1枚ずつ均等(合計は同じ2枚)
+  assert.ok(weightBalanced > weightUnbalanced, `均等な方(${weightBalanced})が偏った方(${weightUnbalanced})より重いはず`);
+});
+
+test('pickWeightedComposite: 直前と異なる値を(候補が2つ以上あれば)除外する', () => {
+  const result = pickWeightedComposite([9], 9, [3, 3, 3], [3, 3, 3], () => 0);
+  assert.equal(result, 9); // 候補が1つしかなければ直前と同じでも返す
+});
+
+test('pickWeightedComposite: 重みの大きい候補ほど選ばれやすい(単純な多数決なら4が選ばれる乱数値でも、重み付けなら6が選ばれる)', () => {
+  // 4={2:2}, 6={2:1,3:1}。手札は2を1枚、3を3枚ずつ持つ。
+  // 4の重みは2の出現数だけに依存し小さく、6は2と3両方の出現数に依存し大きくなる。
+  // 単純な一様分布なら randomFn=0.4 は2候補中インデックス0(4)を指すが、
+  // 重み付けでは6の取り分がずっと大きいため6が選ばれるはず。
+  const result = pickWeightedComposite([4, 6], null, [2, 3, 3, 3], [2, 3, 3, 3], () => 0.4);
+  assert.equal(result, 6);
+});
+
+test('pickPlayableComposite: 出せる候補が複数あるとき、頻度・バランスに基づく重み付けで選ばれる(単純な一様分布なら4になる乱数値でも6になる)', () => {
+  const result = pickPlayableComposite([4, 6], null, [2, 3, 3, 3], [2, 3, 3, 3], () => 0.4);
+  assert.equal(result.composite, 6);
+  assert.deepEqual(result.remaining, { 2: 1, 3: 1 });
+});
+
 test('applyPlay: 両者とも出せない状態になったら合成数が強制的に切り替わる', () => {
   const state = makeState({
     players: [

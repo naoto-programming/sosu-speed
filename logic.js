@@ -44,13 +44,50 @@ function pickNextComposite(pool, previous, randomFn = Math.random) {
   return candidates[index];
 }
 
+function countValueFrequencies(hand) {
+  const freq = {};
+  for (const v of hand) freq[v] = (freq[v] || 0) + 1;
+  return freq;
+}
+
+function computeCompositeWeight(factors, hand0, hand1) {
+  const freq0 = countValueFrequencies(hand0);
+  const freq1 = countValueFrequencies(hand1);
+  const primes = Object.keys(factors).map(Number);
+
+  // 頻度: この合成数が必要とする素数が、両者の手札に合計で多く残っているほど重くする
+  const frequencyScore = primes.reduce((sum, p) => sum + (freq0[p] || 0) + (freq1[p] || 0), 0);
+
+  // バランス: その素数を出せる枚数が両者でどれだけ均等かを見る。偏っているほど軽くする
+  const opportunity0 = primes.reduce((sum, p) => sum + (freq0[p] || 0), 0);
+  const opportunity1 = primes.reduce((sum, p) => sum + (freq1[p] || 0), 0);
+  const imbalance = Math.abs(opportunity0 - opportunity1);
+  const balanceScore = 1 / (1 + imbalance);
+
+  return (1 + frequencyScore) * balanceScore;
+}
+
+function pickWeightedComposite(pool, previous, hand0, hand1, randomFn) {
+  const candidates = pool.length > 1 ? pool.filter((n) => n !== previous) : pool;
+  const weights = candidates.map((n) =>
+    computeCompositeWeight(factorizeWithAllowedPrimes(n, PRIMES), hand0, hand1)
+  );
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  let r = randomFn() * totalWeight;
+  for (let i = 0; i < candidates.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return candidates[i];
+  }
+  return candidates[candidates.length - 1];
+}
+
 function pickPlayableComposite(compositePool, previous, hand0, hand1, randomFn) {
   const playable = compositePool.filter((n) => {
     const factors = factorizeWithAllowedPrimes(n, PRIMES);
     return !bothStuck(hand0, hand1, factors);
   });
   const pool = playable.length > 0 ? playable : compositePool;
-  const composite = pickNextComposite(pool, previous, randomFn);
+  const composite = pickWeightedComposite(pool, previous, hand0, hand1, randomFn);
   const remaining = factorizeWithAllowedPrimes(composite, PRIMES);
   return { composite, remaining };
 }
@@ -211,6 +248,8 @@ if (typeof module !== 'undefined' && module.exports) {
     enumerateComposites,
     minimumMaxCompositeFor,
     pickNextComposite,
+    computeCompositeWeight,
+    pickWeightedComposite,
     pickPlayableComposite,
     fisherYatesShuffle,
     buildDeck,

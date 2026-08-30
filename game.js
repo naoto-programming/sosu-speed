@@ -6,6 +6,8 @@ let settings = {
   countPerPrime: { ...DEFAULT_COUNT_PER_PRIME },
   maxComposite: DEFAULT_MAX_COMPOSITE,
   showQuotient: false,
+  flipTopHand: false,
+  showBothOrientations: false,
 };
 
 const MISPLAY_COOLDOWN_MS = 2000;
@@ -25,7 +27,9 @@ function readSettingsFromInputs() {
   const rawMaxComposite = Number(document.getElementById('max-composite').value) || DEFAULT_MAX_COMPOSITE;
   const maxComposite = Math.min(rawMaxComposite, 100000);
   const showQuotient = document.getElementById('toggle-show-quotient').checked;
-  return { countPerPrime, maxComposite, showQuotient };
+  const flipTopHand = document.getElementById('toggle-flip-top-hand').checked;
+  const showBothOrientations = document.getElementById('toggle-both-orientations').checked;
+  return { countPerPrime, maxComposite, showQuotient, flipTopHand, showBothOrientations };
 }
 
 function writeSettingsToInputs() {
@@ -34,6 +38,8 @@ function writeSettingsToInputs() {
   }
   document.getElementById('max-composite').value = settings.maxComposite;
   document.getElementById('toggle-show-quotient').checked = settings.showQuotient;
+  document.getElementById('toggle-flip-top-hand').checked = settings.flipTopHand;
+  document.getElementById('toggle-both-orientations').checked = settings.showBothOrientations;
 }
 
 document.getElementById('button-SETTINGS').addEventListener('click', () => {
@@ -42,7 +48,13 @@ document.getElementById('button-SETTINGS').addEventListener('click', () => {
 });
 document.getElementById('button-BACK_TO_TITLE').addEventListener('click', () => showScreen('screen-title'));
 document.getElementById('button-RESET_DEFAULTS').addEventListener('click', () => {
-  settings = { countPerPrime: { ...DEFAULT_COUNT_PER_PRIME }, maxComposite: DEFAULT_MAX_COMPOSITE, showQuotient: false };
+  settings = {
+    countPerPrime: { ...DEFAULT_COUNT_PER_PRIME },
+    maxComposite: DEFAULT_MAX_COMPOSITE,
+    showQuotient: false,
+    flipTopHand: false,
+    showBothOrientations: false,
+  };
   writeSettingsToInputs();
 });
 
@@ -74,11 +86,18 @@ function startGame() {
 function renderGame() {
   renderHand('hand-player1', gameState.players[0].hand, 0);
   renderHand('hand-player2', gameState.players[1].hand, 1);
+  document.getElementById('hand-player2').classList.toggle('flipped', settings.flipTopHand);
   document.getElementById('deck-count-player1').textContent = `残り山札: ${gameState.players[0].deck.length}`;
   document.getElementById('deck-count-player2').textContent = `残り山札: ${gameState.players[1].deck.length}`;
-  document.getElementById('field-composite').textContent = settings.showQuotient
+
+  const compositeText = settings.showQuotient
     ? computeQuotient(gameState.composite, gameState.playedLog)
     : gameState.composite;
+  document.getElementById('field-composite').textContent = compositeText;
+  const flippedComposite = document.getElementById('field-composite-flipped');
+  flippedComposite.textContent = compositeText;
+  flippedComposite.hidden = !settings.showBothOrientations;
+
   renderPlayedLog();
 }
 

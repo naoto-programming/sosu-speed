@@ -28,6 +28,8 @@
       <label class="setting-row" for="count-11"><span>11 の枚数</span><input id="count-11" type="number" min="0" value="6" /></label>
       <label class="setting-row" for="max-composite"><span>合成数の最大値</span><input id="max-composite" type="number" min="4" max="100000" value="1100" /></label>
       <label class="setting-row" for="toggle-show-quotient"><span>出したら合成数を割った値を表示</span><input id="toggle-show-quotient" type="checkbox" /></label>
+      <label class="setting-row" for="toggle-flip-top-hand"><span>上側プレイヤーの手札を反転表示</span><input id="toggle-flip-top-hand" type="checkbox" /></label>
+      <label class="setting-row" for="toggle-both-orientations"><span>合成数を上下両方向に表示</span><input id="toggle-both-orientations" type="checkbox" /></label>
     </div>
     <div class="button-wrapper">
       <button class="menu-button" id="button-RESET_DEFAULTS">デフォルトに戻す</button>
@@ -42,6 +44,7 @@
     <div class="deck-count" id="deck-count-player2"></div>
 
     <div class="field">
+      <div class="composite composite-flipped" id="field-composite-flipped" hidden></div>
       <div class="composite" id="field-composite"></div>
       <div class="played-log" id="field-played-log"></div>
     </div>
