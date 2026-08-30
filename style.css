@@ -20,6 +20,13 @@ body {
   min-height: 100vh;
   box-sizing: border-box;
   padding: 1rem;
+  /* カード以外(ラベル・数字・余白など)を長押ししたときに、テキスト選択や
+     iOS Safariのコールアウトメニュー経由で右クリック相当のメニューが出るのを防ぐ。
+     contextmenuイベントのpreventDefaultだけでは防げない経路をここで塞ぐ。 */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
 }
 
 [hidden] { display: none !important; }
@@ -53,6 +60,12 @@ button.menu-button {
 button.menu-button:active {
   background-color: var(--color-dark);
   color: var(--color-light);
+}
+
+#button-QUIT_TO_TITLE.holding {
+  background-color: var(--color-dark);
+  color: var(--color-light);
+  transition: background-color 0.8s linear, color 0.8s linear;
 }
 
 .settings-grid {
@@ -148,4 +161,59 @@ label.setting-row input[type="number"] {
   color: var(--color-dark);
   opacity: 0.85;
   letter-spacing: 0.05em;
+}
+
+/* スマホの縦持ち: 画面幅が狭いので、5枚の手札が1行に収まるようカードを縮める */
+@media (max-width: 480px) {
+  .card {
+    width: 3.2rem;
+    height: 4.6rem;
+    font-size: 1.4rem;
+  }
+  .hand-row {
+    gap: 0.4em;
+  }
+  .composite {
+    font-size: 2.2rem;
+  }
+  .field {
+    padding: 0.75em 1.25em;
+  }
+}
+
+/* スマホの横持ち: 画面が縦に低いので、余白・カード・文字サイズを詰めて
+   スクロールなしで手札2列+場が収まるようにする */
+@media (max-height: 480px) and (orientation: landscape) {
+  body {
+    padding: 0.4rem;
+  }
+  #screen-game {
+    gap: 0.4em;
+  }
+  .card {
+    width: 3rem;
+    height: 4.2rem;
+    font-size: 1.3rem;
+  }
+  .hand-row {
+    gap: 0.4em;
+  }
+  .field {
+    padding: 0.4em 1em;
+    gap: 0.25em;
+  }
+  .composite {
+    font-size: 1.8rem;
+  }
+  .played-log {
+    font-size: 1rem;
+    min-height: 1.2em;
+  }
+  .deck-count {
+    font-size: 0.75rem;
+  }
+  button.menu-button {
+    padding: 0.4rem 0.9rem;
+    font-size: 0.95rem;
+  }
 }

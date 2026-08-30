@@ -6,9 +6,10 @@ let settings = {
   countPerPrime: { ...DEFAULT_COUNT_PER_PRIME },
   maxComposite: DEFAULT_MAX_COMPOSITE,
   showQuotient: false,
-  flipTopHand: false,
-  showBothOrientations: false,
+  flipTopHand: true,
 };
+
+const LONG_PRESS_MS = 800;
 
 const MISPLAY_COOLDOWN_MS = 2000;
 let lockUntil = [0, 0];
@@ -28,8 +29,7 @@ function readSettingsFromInputs() {
   const maxComposite = Math.min(rawMaxComposite, 100000);
   const showQuotient = document.getElementById('toggle-show-quotient').checked;
   const flipTopHand = document.getElementById('toggle-flip-top-hand').checked;
-  const showBothOrientations = document.getElementById('toggle-both-orientations').checked;
-  return { countPerPrime, maxComposite, showQuotient, flipTopHand, showBothOrientations };
+  return { countPerPrime, maxComposite, showQuotient, flipTopHand };
 }
 
 function writeSettingsToInputs() {
@@ -39,7 +39,6 @@ function writeSettingsToInputs() {
   document.getElementById('max-composite').value = settings.maxComposite;
   document.getElementById('toggle-show-quotient').checked = settings.showQuotient;
   document.getElementById('toggle-flip-top-hand').checked = settings.flipTopHand;
-  document.getElementById('toggle-both-orientations').checked = settings.showBothOrientations;
 }
 
 document.getElementById('button-SETTINGS').addEventListener('click', () => {
@@ -52,8 +51,7 @@ document.getElementById('button-RESET_DEFAULTS').addEventListener('click', () =>
     countPerPrime: { ...DEFAULT_COUNT_PER_PRIME },
     maxComposite: DEFAULT_MAX_COMPOSITE,
     showQuotient: false,
-    flipTopHand: false,
-    showBothOrientations: false,
+    flipTopHand: true,
   };
   writeSettingsToInputs();
 });
@@ -90,19 +88,15 @@ function renderGame() {
   document.getElementById('deck-count-player1').textContent = `残り山札: ${gameState.players[0].deck.length}`;
   document.getElementById('deck-count-player2').textContent = `残り山札: ${gameState.players[1].deck.length}`;
 
-  // 手札反転設定がオンの場合、上側プレイヤーにも場の情報が読めるよう、
-  // 「両方向に表示」設定がオフでも合成数・出したカード一覧の反転表示は出す。
-  const showFlippedField = settings.showBothOrientations || settings.flipTopHand;
-
   const compositeText = settings.showQuotient
     ? computeQuotient(gameState.composite, gameState.playedLog)
     : gameState.composite;
   document.getElementById('field-composite').textContent = compositeText;
   const flippedComposite = document.getElementById('field-composite-flipped');
   flippedComposite.textContent = compositeText;
-  flippedComposite.hidden = !showFlippedField;
+  flippedComposite.hidden = !settings.flipTopHand;
 
-  renderPlayedLog(showFlippedField);
+  renderPlayedLog(settings.flipTopHand);
 }
 
 function renderPlayedLog(showFlipped) {
@@ -160,4 +154,29 @@ document.getElementById('button-START').addEventListener('click', () => {
 });
 document.getElementById('button-START_FROM_SETTINGS').addEventListener('click', startGame);
 document.getElementById('button-RESTART').addEventListener('click', () => showScreen('screen-title'));
-document.getElementById('button-QUIT_TO_TITLE').addEventListener('click', () => showScreen('screen-title'));
+
+// 対戦中の誤タップで意図せずタイトルに戻ってしまわないよう、長押しでのみ発動させる。
+function setupLongPress(button, holdMs, onComplete) {
+  let timerId = null;
+  const start = (e) => {
+    e.preventDefault();
+    button.classList.add('holding');
+    timerId = setTimeout(() => {
+      timerId = null;
+      button.classList.remove('holding');
+      onComplete();
+    }, holdMs);
+  };
+  const cancel = () => {
+    if (timerId !== null) {
+      clearTimeout(timerId);
+      timerId = null;
+    }
+    button.classList.remove('holding');
+  };
+  button.addEventListener('pointerdown', start);
+  button.addEventListener('pointerup', cancel);
+  button.addEventListener('pointerleave', cancel);
+  button.addEventListener('pointercancel', cancel);
+}
+setupLongPress(document.getElementById('button-QUIT_TO_TITLE'), LONG_PRESS_MS, () => showScreen('screen-title'));
