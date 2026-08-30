@@ -14,6 +14,16 @@ const {
 const { canPlay, isCleared, hasAnyPlayable, bothStuck, applyPlay } = require('../logic.js'); // PRIMESは冒頭のrequireで既に取得済み
 const { pickPlayableComposite } = require('../logic.js');
 const { minimumMaxCompositeFor } = require('../logic.js');
+const { computeQuotient } = require('../logic.js');
+
+test('computeQuotient: 何も出していなければ合成数そのまま', () => {
+  assert.equal(computeQuotient(810, []), 810);
+});
+
+test('computeQuotient: 出した数で順番に割っていく', () => {
+  assert.equal(computeQuotient(810, [5]), 162);
+  assert.equal(computeQuotient(810, [5, 3]), 54);
+});
 
 test('factorizeWithAllowedPrimes: 60 は 2^2 * 3 * 5', () => {
   assert.deepEqual(factorizeWithAllowedPrimes(60, PRIMES), { 2: 2, 3: 1, 5: 1 });
@@ -95,6 +105,7 @@ test('createGameState: 決定的な入力から一貫した初期状態を作る
   assert.deepEqual(state.compositePool, [4, 6, 8, 9, 10]);
   assert.equal(state.composite, 4);
   assert.deepEqual(state.remaining, { 2: 2 });
+  assert.deepEqual(state.playedLog, []);
 });
 
 function makeState(overrides) {
@@ -114,6 +125,7 @@ function makeState(overrides) {
     remaining: { 2: 2, 3: 1, 5: 1 },
     previousComposite: null,
     compositePool: [60, 4, 6],
+    playedLog: [],
     winner: null,
     ...overrides,
   };
@@ -146,16 +158,20 @@ test('applyPlay: 60をA=2,B=2,A=3,A=5の順で出し切るとクリアされ次�
   state = applyPlay(state, 0, 2, () => 0); // A: 2を出す
   assert.deepEqual(state.remaining, { 2: 1, 3: 1, 5: 1 });
   assert.equal(state.players[0].hand.length, 5); // 出した分, 山札から補充
+  assert.deepEqual(state.playedLog, [2]);
 
   state = applyPlay(state, 1, 2, () => 0); // B: 2を出す
   assert.deepEqual(state.remaining, { 3: 1, 5: 1 });
+  assert.deepEqual(state.playedLog, [2, 2]);
 
   state = applyPlay(state, 0, 3, () => 0); // A: 3を出す
   assert.deepEqual(state.remaining, { 5: 1 });
+  assert.deepEqual(state.playedLog, [2, 2, 3]);
 
   state = applyPlay(state, 0, 5, () => 0); // A: 5を出す -> クリア
   assert.notEqual(state.composite, 60);
   assert.equal(state.previousComposite, 60);
+  assert.deepEqual(state.playedLog, []); // 合成数が切り替わったら出した一覧もリセット
 });
 
 test('applyPlay: 手札にない値やremainingに無い値を指定すると何もしない', () => {
@@ -245,4 +261,5 @@ test('applyPlay: 両者とも出せない状態になったら合成数が強制
   assert.equal(result.composite, 21);
   assert.equal(result.previousComposite, 60);
   assert.deepEqual(result.remaining, { 3: 1, 7: 1 });
+  assert.deepEqual(result.playedLog, []); // 強制切り替えでも出した一覧はリセットされる
 });

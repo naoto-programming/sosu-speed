@@ -109,13 +109,9 @@ label.setting-row input[type="number"] {
   box-shadow: 2px 2px 0 rgba(35, 34, 72, 0.2);
   user-select: none;
 }
-.card.playable {
-  border-color: #d33;
-  box-shadow: 2px 2px 0 rgba(221, 51, 51, 0.4);
-}
-.card.disabled {
-  opacity: 0.5;
-  cursor: default;
+.card.locked {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .deck-count {
@@ -137,15 +133,11 @@ label.setting-row input[type="number"] {
   font-size: 3rem;
   font-weight: bold;
 }
-.remaining-chips {
-  display: flex;
-  gap: 0.5em;
-}
-.chip {
-  background-color: var(--color-dark);
-  color: var(--color-light);
-  border-radius: 999px;
-  padding: 0.25em 0.75em;
-  font-size: 1rem;
-  font-weight: bold;
+.played-log {
+  font-family: 'Roboto Slab', serif;
+  font-size: 1.25rem;
+  min-height: 1.5em;
+  color: var(--color-dark);
+  opacity: 0.85;
+  letter-spacing: 0.05em;
 }

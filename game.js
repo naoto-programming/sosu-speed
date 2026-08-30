@@ -1,7 +1,11 @@
 let settings = {
   countPerPrime: { ...DEFAULT_COUNT_PER_PRIME },
   maxComposite: DEFAULT_MAX_COMPOSITE,
+  showQuotient: false,
 };
+
+const MISPLAY_COOLDOWN_MS = 2000;
+let lockUntil = [0, 0];
 
 function showScreen(id) {
   for (const el of document.querySelectorAll('body > section')) {
@@ -16,7 +20,8 @@ function readSettingsFromInputs() {
   }
   const rawMaxComposite = Number(document.getElementById('max-composite').value) || DEFAULT_MAX_COMPOSITE;
   const maxComposite = Math.min(rawMaxComposite, 100000);
-  return { countPerPrime, maxComposite };
+  const showQuotient = document.getElementById('toggle-show-quotient').checked;
+  return { countPerPrime, maxComposite, showQuotient };
 }
 
 function writeSettingsToInputs() {
@@ -24,6 +29,7 @@ function writeSettingsToInputs() {
     document.getElementById(`count-${p}`).value = settings.countPerPrime[p];
   }
   document.getElementById('max-composite').value = settings.maxComposite;
+  document.getElementById('toggle-show-quotient').checked = settings.showQuotient;
 }
 
 document.getElementById('button-SETTINGS').addEventListener('click', () => {
@@ -32,7 +38,7 @@ document.getElementById('button-SETTINGS').addEventListener('click', () => {
 });
 document.getElementById('button-BACK_TO_TITLE').addEventListener('click', () => showScreen('screen-title'));
 document.getElementById('button-RESET_DEFAULTS').addEventListener('click', () => {
-  settings = { countPerPrime: { ...DEFAULT_COUNT_PER_PRIME }, maxComposite: DEFAULT_MAX_COMPOSITE };
+  settings = { countPerPrime: { ...DEFAULT_COUNT_PER_PRIME }, maxComposite: DEFAULT_MAX_COMPOSITE, showQuotient: false };
   writeSettingsToInputs();
 });
 
@@ -55,6 +61,7 @@ function startGame() {
     alert(`合成数の最大値が、山札の素数構成に対して小さすぎたため、${minRequired}に引き上げました。`);
   }
 
+  lockUntil = [0, 0];
   gameState = createGameState(settings, Math.random, fisherYatesShuffle);
   showScreen('screen-game');
   renderGame();
@@ -65,36 +72,29 @@ function renderGame() {
   renderHand('hand-player2', gameState.players[1].hand, 1);
   document.getElementById('deck-count-player1').textContent = `残り山札: ${gameState.players[0].deck.length}`;
   document.getElementById('deck-count-player2').textContent = `残り山札: ${gameState.players[1].deck.length}`;
-  document.getElementById('field-composite').textContent = gameState.composite;
-  renderRemaining();
+  document.getElementById('field-composite').textContent = settings.showQuotient
+    ? computeQuotient(gameState.composite, gameState.playedLog)
+    : gameState.composite;
+  renderPlayedLog();
 }
 
-function renderRemaining() {
-  const container = document.getElementById('field-remaining');
-  container.innerHTML = '';
-  for (const p of PRIMES) {
-    const count = gameState.remaining[p] || 0;
-    if (count > 0) {
-      const chip = document.createElement('span');
-      chip.className = 'chip';
-      chip.textContent = `${p} × ${count}`;
-      container.appendChild(chip);
-    }
-  }
+function renderPlayedLog() {
+  const container = document.getElementById('field-played-log');
+  container.textContent = gameState.playedLog.length > 0 ? gameState.playedLog.join(' × ') : '';
 }
 
 function renderHand(containerId, hand, playerIndex) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
+  const locked = Date.now() < lockUntil[playerIndex];
   hand.forEach((value) => {
     const card = document.createElement('div');
     card.className = 'card';
     card.textContent = value;
-    if (canPlay(gameState.remaining, value)) {
-      card.classList.add('playable');
-      card.addEventListener('click', () => onCardClick(playerIndex, value));
+    if (locked) {
+      card.classList.add('locked');
     } else {
-      card.classList.add('disabled');
+      card.addEventListener('click', () => onCardClick(playerIndex, value));
     }
     container.appendChild(card);
   });
@@ -102,6 +102,15 @@ function renderHand(containerId, hand, playerIndex) {
 
 function onCardClick(playerIndex, value) {
   if (gameState.winner !== null) return;
+  if (Date.now() < lockUntil[playerIndex]) return;
+
+  if (!canPlay(gameState.remaining, value)) {
+    lockUntil[playerIndex] = Date.now() + MISPLAY_COOLDOWN_MS;
+    renderGame();
+    setTimeout(renderGame, MISPLAY_COOLDOWN_MS);
+    return;
+  }
+
   gameState = applyPlay(gameState, playerIndex, value, Math.random);
   renderGame();
   if (gameState.winner !== null) {

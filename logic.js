@@ -98,8 +98,13 @@ function createGameState(settings, randomFn, shuffleFn) {
     remaining,
     previousComposite: null,
     compositePool,
+    playedLog: [],
     winner: null,
   };
+}
+
+function computeQuotient(composite, playedLog) {
+  return playedLog.reduce((acc, v) => acc / v, composite);
 }
 
 function canPlay(remaining, value) {
@@ -181,11 +186,18 @@ function applyPlay(state, playerIndex, value, randomFn = Math.random) {
       composite: nextComposite,
       remaining: nextRemaining,
       previousComposite: state.composite,
+      playedLog: [],
       winner: null,
     };
   }
 
-  return { ...state, players: updatedPlayers, remaining: remainingAfterPlay, winner: null };
+  return {
+    ...state,
+    players: updatedPlayers,
+    remaining: remainingAfterPlay,
+    playedLog: [...state.playedLog, value],
+    winner: null,
+  };
 }
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -204,6 +216,7 @@ if (typeof module !== 'undefined' && module.exports) {
     buildDeck,
     dealHand,
     createGameState,
+    computeQuotient,
     canPlay,
     removeOneFromHand,
     drawOne,
