@@ -12,6 +12,7 @@ const {
   createGameState,
 } = require('../logic.js');
 const { canPlay, isCleared, hasAnyPlayable, bothStuck, applyPlay } = require('../logic.js'); // PRIMESは冒頭のrequireで既に取得済み
+const { pickPlayableComposite } = require('../logic.js');
 
 test('factorizeWithAllowedPrimes: 60 は 2^2 * 3 * 5', () => {
   assert.deepEqual(factorizeWithAllowedPrimes(60, PRIMES), { 2: 2, 3: 1, 5: 1 });
@@ -171,6 +172,35 @@ test('applyPlay: STOPカードを引いたプレイヤーが即座に勝利す�
   });
   const result = applyPlay(state, 0, 2, () => 0);
   assert.equal(result.winner, 0);
+});
+
+test('pickPlayableComposite: 最初の候補がどちらの手札でも出せない場合、出せる候補まで進める', () => {
+  // pool=[4,6,9]。previous=null。
+  // randomFnを () => 0 に固定すると pickNextComposite は毎回「候補配列の先頭」を返す。
+  // 1回目: candidates=[4,6,9](previousはnullなので除外なし) -> 4 (factors {2:2})
+  //   hand0=[3,3], hand1=[3,3] は2を持たないので bothStuck(hand0,hand1,{2:2}) === true -> 4はスキップ
+  // 2回目: candidates=[6,9](4を除外) -> 6 (factors {2:1,3:1})
+  //   hand0=[3,3] は3を持つので bothStuck は false -> 6を採用
+  const result = pickPlayableComposite([4, 6, 9], null, [3, 3], [3, 3], () => 0);
+  assert.equal(result.composite, 6);
+  assert.deepEqual(result.remaining, { 2: 1, 3: 1 });
+});
+
+test('pickPlayableComposite: 最初から出せる候補ならそれを返す', () => {
+  const result = pickPlayableComposite([4, 6, 9], null, [2, 2], [2, 2], () => 0);
+  assert.equal(result.composite, 4);
+  assert.deepEqual(result.remaining, { 2: 2 });
+});
+
+test('createGameState: 初期合成数は必ずどちらかの手札で出せるものになる(デッドロック防止)', () => {
+  // countPerPrime: 3のみ29枚(28枚山札+STOP、5枚配って残り24枚)。
+  // maxComposite=10で作られるcompositePool=[4,6,8,9,10]のうち、
+  // 3を含まない4,8はどちらの手札(全て3)でも出せないはずなので、
+  // pickPlayableComposite が 6 か 9 のどちらかまでスキップしないといけない。
+  const settings = { maxComposite: 10, countPerPrime: { 3: 29 } };
+  const identity = (arr) => arr;
+  const state = createGameState(settings, () => 0, identity);
+  assert.ok([6, 9].includes(state.composite), `composite ${state.composite} should be playable by an all-3s hand`);
 });
 
 test('applyPlay: 両者とも出せない状態になったら合成数が強制的に切り替わる', () => {

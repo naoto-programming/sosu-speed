@@ -38,6 +38,19 @@ function pickNextComposite(pool, previous, randomFn = Math.random) {
   return candidates[index];
 }
 
+function pickPlayableComposite(compositePool, previous, hand0, hand1, randomFn) {
+  let candidate = previous;
+  let remaining;
+  const maxAttempts = compositePool.length;
+  let attempts = 0;
+  do {
+    candidate = pickNextComposite(compositePool, candidate, randomFn);
+    remaining = factorizeWithAllowedPrimes(candidate, PRIMES);
+    attempts += 1;
+  } while (bothStuck(hand0, hand1, remaining) && attempts < maxAttempts);
+  return { composite: candidate, remaining };
+}
+
 function fisherYatesShuffle(arr) {
   const result = [...arr];
   for (let i = result.length - 1; i > 0; i--) {
@@ -68,8 +81,13 @@ function createGameState(settings, randomFn, shuffleFn) {
     const deck = buildDeck(settings.countPerPrime, primes, shuffleFn);
     return dealHand(deck);
   });
-  const composite = pickNextComposite(compositePool, null, randomFn);
-  const remaining = factorizeWithAllowedPrimes(composite, primes);
+  const { composite, remaining } = pickPlayableComposite(
+    compositePool,
+    null,
+    players[0].hand,
+    players[1].hand,
+    randomFn
+  );
   return {
     players,
     composite,
@@ -146,8 +164,13 @@ function applyPlay(state, playerIndex, value, randomFn = Math.random) {
   const stuck = !cleared && bothStuck(finalHand, otherHand, remainingAfterPlay);
 
   if (cleared || stuck) {
-    const nextComposite = pickNextComposite(state.compositePool, state.composite, randomFn);
-    const nextRemaining = factorizeWithAllowedPrimes(nextComposite, PRIMES);
+    const { composite: nextComposite, remaining: nextRemaining } = pickPlayableComposite(
+      state.compositePool,
+      state.composite,
+      finalHand,
+      otherHand,
+      randomFn
+    );
     return {
       ...state,
       players: updatedPlayers,
@@ -171,6 +194,7 @@ if (typeof module !== 'undefined' && module.exports) {
     isValidComposite,
     enumerateComposites,
     pickNextComposite,
+    pickPlayableComposite,
     fisherYatesShuffle,
     buildDeck,
     dealHand,
