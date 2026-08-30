@@ -39,6 +39,12 @@ let gameState = null;
 
 function startGame() {
   settings = readSettingsFromInputs();
+  const minRequired = minimumMaxCompositeFor(settings.countPerPrime, PRIMES);
+  if (settings.maxComposite < minRequired) {
+    settings.maxComposite = minRequired;
+    document.getElementById('max-composite').value = settings.maxComposite;
+    alert(`合成数の最大値が、山札の素数構成に対して小さすぎたため、${minRequired}に引き上げました。`);
+  }
   let pool = enumerateComposites(settings.maxComposite, PRIMES);
   if (pool.length === 0) {
     settings.maxComposite = 4;

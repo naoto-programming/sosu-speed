@@ -32,6 +32,12 @@ function enumerateComposites(max, primes) {
   return pool;
 }
 
+function minimumMaxCompositeFor(countPerPrime, primes) {
+  const activePrimes = primes.filter((p) => (countPerPrime[p] || 0) > 0);
+  if (activePrimes.length === 0) return 4;
+  return 2 * Math.max(...activePrimes);
+}
+
 function pickNextComposite(pool, previous, randomFn = Math.random) {
   const candidates = pool.length > 1 ? pool.filter((n) => n !== previous) : pool;
   const index = Math.floor(randomFn() * candidates.length);
@@ -191,6 +197,7 @@ if (typeof module !== 'undefined' && module.exports) {
     factorizeWithAllowedPrimes,
     isValidComposite,
     enumerateComposites,
+    minimumMaxCompositeFor,
     pickNextComposite,
     pickPlayableComposite,
     fisherYatesShuffle,

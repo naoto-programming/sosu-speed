@@ -13,6 +13,7 @@ const {
 } = require('../logic.js');
 const { canPlay, isCleared, hasAnyPlayable, bothStuck, applyPlay } = require('../logic.js'); // PRIMESは冒頭のrequireで既に取得済み
 const { pickPlayableComposite } = require('../logic.js');
+const { minimumMaxCompositeFor } = require('../logic.js');
 
 test('factorizeWithAllowedPrimes: 60 は 2^2 * 3 * 5', () => {
   assert.deepEqual(factorizeWithAllowedPrimes(60, PRIMES), { 2: 2, 3: 1, 5: 1 });
@@ -213,6 +214,20 @@ test('createGameState: 初期合成数は必ずどちらかの手札で出せる
   const identity = (arr) => arr;
   const state = createGameState(settings, () => 0, identity);
   assert.ok([6, 9].includes(state.composite), `composite ${state.composite} should be playable by an all-3s hand`);
+});
+
+test('minimumMaxCompositeFor: 山札に含まれる最大の素数の2倍を返す', () => {
+  // 11のカードが1枚でもあれば、11を因数に持つ最小の合成数22が出せる必要がある
+  assert.equal(minimumMaxCompositeFor({ 2: 6, 3: 6, 5: 6, 7: 6, 11: 6 }, PRIMES), 22);
+});
+
+test('minimumMaxCompositeFor: 一部の素数の枚数が0なら計算対象から除外する', () => {
+  // 7と11を山札に含めない場合、最大でも5の2倍=10あれば足りる
+  assert.equal(minimumMaxCompositeFor({ 2: 6, 3: 6, 5: 6, 7: 0, 11: 0 }, PRIMES), 10);
+});
+
+test('minimumMaxCompositeFor: すべての素数が0枚なら4を返す(縮退ケースのフォールバック)', () => {
+  assert.equal(minimumMaxCompositeFor({ 2: 0, 3: 0, 5: 0, 7: 0, 11: 0 }, PRIMES), 4);
 });
 
 test('applyPlay: 両者とも出せない状態になったら合成数が強制的に切り替わる', () => {
