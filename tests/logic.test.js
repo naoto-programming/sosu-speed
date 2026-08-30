@@ -79,12 +79,14 @@ test('dealHand: 先頭HAND_SIZE枚を手札に、残りを山札にする', () =
 });
 
 test('createGameState: 決定的な入力から一貫した初期状態を作る', () => {
-  const settings = { maxComposite: 10, countPerPrime: { 2: 2, 3: 1 } };
+  const settings = { maxComposite: 10, countPerPrime: { 2: 3, 3: 2 } };
   const identity = (arr) => arr;
   const state = createGameState(settings, () => 0, identity);
 
   assert.equal(state.players.length, 2);
-  assert.equal(state.players[0].hand.length, 4);
+  assert.equal(state.players[0].hand.length, 5);
+  assert.deepEqual(state.players[0].hand, [2, 2, 2, 3, 3]);
+  assert.deepEqual(state.players[0].deck, ['STOP']);
   assert.equal(state.winner, null);
   assert.equal(state.previousComposite, null);
   assert.deepEqual(state.compositePool, [4, 6, 8, 9, 10]);
