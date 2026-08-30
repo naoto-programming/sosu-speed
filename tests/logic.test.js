@@ -6,6 +6,9 @@ const {
   isValidComposite,
   enumerateComposites,
   pickNextComposite,
+  buildDeck,
+  dealHand,
+  HAND_SIZE,
 } = require('../logic.js');
 
 test('factorizeWithAllowedPrimes: 60 は 2^2 * 3 * 5', () => {
@@ -58,4 +61,18 @@ test('pickNextComposite: randomFnの値に応じて候補内の位置が変わ�
   const result = pickNextComposite([4, 6, 8, 9], 6, () => 0.99);
   // previous=6を除外した候補は [4, 8, 9]、末尾の9が選ばれる
   assert.equal(result, 9);
+});
+
+test('buildDeck: 指定枚数分のカード + 末尾にSTOPを積む(シャッフルなし版)', () => {
+  const identity = (arr) => arr;
+  const deck = buildDeck({ 2: 2, 3: 1 }, [2, 3], identity);
+  assert.deepEqual(deck, [2, 2, 3, 'STOP']);
+});
+
+test('dealHand: 先頭HAND_SIZE枚を手札に、残りを山札にする', () => {
+  const deck = [2, 2, 3, 5, 7, 11, 3, 'STOP'];
+  const result = dealHand(deck);
+  assert.deepEqual(result.hand, [2, 2, 3, 5, 7]);
+  assert.deepEqual(result.deck, [11, 3, 'STOP']);
+  assert.equal(result.hand.length, HAND_SIZE);
 });

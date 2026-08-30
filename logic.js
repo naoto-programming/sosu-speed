@@ -38,6 +38,29 @@ function pickNextComposite(pool, previous, randomFn = Math.random) {
   return candidates[index];
 }
 
+function fisherYatesShuffle(arr) {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function buildDeck(countPerPrime, primes, shuffleFn) {
+  const cards = [];
+  for (const p of primes) {
+    const count = countPerPrime[p] || 0;
+    for (let i = 0; i < count; i++) cards.push(p);
+  }
+  const shuffled = shuffleFn(cards);
+  return [...shuffled, 'STOP'];
+}
+
+function dealHand(deck) {
+  return { hand: deck.slice(0, HAND_SIZE), deck: deck.slice(HAND_SIZE) };
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PRIMES,
@@ -48,5 +71,8 @@ if (typeof module !== 'undefined' && module.exports) {
     isValidComposite,
     enumerateComposites,
     pickNextComposite,
+    fisherYatesShuffle,
+    buildDeck,
+    dealHand,
   };
 }
