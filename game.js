@@ -83,6 +83,7 @@ function renderHand(containerId, hand, playerIndex) {
     card.textContent = value;
     if (canPlay(gameState.remaining, value)) {
       card.classList.add('playable');
+      card.addEventListener('click', () => onCardClick(playerIndex, value));
     } else {
       card.classList.add('disabled');
     }
@@ -90,8 +91,24 @@ function renderHand(containerId, hand, playerIndex) {
   });
 }
 
+function onCardClick(playerIndex, value) {
+  if (gameState.winner !== null) return;
+  gameState = applyPlay(gameState, playerIndex, value, Math.random);
+  renderGame();
+  if (gameState.winner !== null) {
+    showGameOver();
+  }
+}
+
+function showGameOver() {
+  const winnerName = gameState.winner === 0 ? 'プレイヤー1' : 'プレイヤー2';
+  document.getElementById('gameover-winner').textContent = `${winnerName} の勝利!`;
+  showScreen('screen-gameover');
+}
+
 document.getElementById('button-START').addEventListener('click', () => {
   writeSettingsToInputs();
   startGame();
 });
 document.getElementById('button-START_FROM_SETTINGS').addEventListener('click', startGame);
+document.getElementById('button-RESTART').addEventListener('click', () => showScreen('screen-title'));
