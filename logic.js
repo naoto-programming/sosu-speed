@@ -39,16 +39,14 @@ function pickNextComposite(pool, previous, randomFn = Math.random) {
 }
 
 function pickPlayableComposite(compositePool, previous, hand0, hand1, randomFn) {
-  let candidate = previous;
-  let remaining;
-  const maxAttempts = compositePool.length;
-  let attempts = 0;
-  do {
-    candidate = pickNextComposite(compositePool, candidate, randomFn);
-    remaining = factorizeWithAllowedPrimes(candidate, PRIMES);
-    attempts += 1;
-  } while (bothStuck(hand0, hand1, remaining) && attempts < maxAttempts);
-  return { composite: candidate, remaining };
+  const playable = compositePool.filter((n) => {
+    const factors = factorizeWithAllowedPrimes(n, PRIMES);
+    return !bothStuck(hand0, hand1, factors);
+  });
+  const pool = playable.length > 0 ? playable : compositePool;
+  const composite = pickNextComposite(pool, previous, randomFn);
+  const remaining = factorizeWithAllowedPrimes(composite, PRIMES);
+  return { composite, remaining };
 }
 
 function fisherYatesShuffle(arr) {

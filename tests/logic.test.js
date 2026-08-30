@@ -192,6 +192,18 @@ test('pickPlayableComposite: 最初から出せる候補ならそれを返す', 
   assert.deepEqual(result.remaining, { 2: 2 });
 });
 
+test('pickPlayableComposite: プール内に出せる候補が1つしかなくても必ず見つける(retry-loop版の既知バグの再現ケース)', () => {
+  // pool=[4,6,8]。6だけが両手札(3のみ)で出せる(4,8はどちらも2を要求するが手札に2が無い)。
+  // 修正前のretry-loopアルゴリズムでは、pickNextCompositeが「直前の1候補」しか除外しないため、
+  // 既に試して失敗した候補(例:4)がpreviousから外れて後の試行で再び選ばれることがあり、
+  // maxAttemptsを使い果たして6に一度も到達できないまま終わる可能性があった。
+  // 先にpool全体を「出せる候補」だけへfilterしてから選ぶ新アルゴリズムでは、
+  // randomFnの返す値に関わらず必ず6を返す。
+  const result = pickPlayableComposite([4, 6, 8], null, [3, 3], [3, 3], () => 0);
+  assert.equal(result.composite, 6);
+  assert.deepEqual(result.remaining, { 2: 1, 3: 1 });
+});
+
 test('createGameState: 初期合成数は必ずどちらかの手札で出せるものになる(デッドロック防止)', () => {
   // countPerPrime: 3のみ29枚(28枚山札+STOP、5枚配って残り24枚)。
   // maxComposite=10で作られるcompositePool=[4,6,8,9,10]のうち、
