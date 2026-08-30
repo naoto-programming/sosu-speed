@@ -85,7 +85,7 @@ test('enumerateComposites: 10以下で 2,3,5,7,11 のみからなる合成数の
 
 - [ ] **Step 2: テストを実行して失敗を確認する**
 
-Run: `node --test tests/`
+Run: `node --test tests/logic.test.js`
 Expected: FAIL（`logic.js`が存在しない、または`require`が失敗する）
 
 - [ ] **Step 3: `logic.js`に実装を書く**
@@ -139,7 +139,7 @@ if (typeof module !== 'undefined' && module.exports) {
 
 - [ ] **Step 4: テストを実行して成功を確認する**
 
-Run: `node --test tests/`
+Run: `node --test tests/logic.test.js`
 Expected: PASS（全8テスト）
 
 - [ ] **Step 5: コミット**
@@ -187,7 +187,7 @@ test('pickNextComposite: randomFnの値に応じて候補内の位置が変わ�
 
 - [ ] **Step 2: テストを実行して失敗を確認する**
 
-Run: `node --test tests/`
+Run: `node --test tests/logic.test.js`
 Expected: FAIL（`pickNextComposite is not a function`）
 
 - [ ] **Step 3: `logic.js`に実装を追加する**
@@ -206,7 +206,7 @@ function pickNextComposite(pool, previous, randomFn = Math.random) {
 
 - [ ] **Step 4: テストを実行して成功を確認する**
 
-Run: `node --test tests/`
+Run: `node --test tests/logic.test.js`
 Expected: PASS
 
 - [ ] **Step 5: コミット**
@@ -250,7 +250,7 @@ test('dealHand: 先頭HAND_SIZE枚を手札に、残りを山札にする', () =
 
 - [ ] **Step 2: テストを実行して失敗を確認する**
 
-Run: `node --test tests/`
+Run: `node --test tests/logic.test.js`
 Expected: FAIL（`buildDeck is not a function`）
 
 - [ ] **Step 3: `logic.js`に実装を追加する**
@@ -284,7 +284,7 @@ function dealHand(deck) {
 
 - [ ] **Step 4: テストを実行して成功を確認する**
 
-Run: `node --test tests/`
+Run: `node --test tests/logic.test.js`
 Expected: PASS
 
 - [ ] **Step 5: コミット**
@@ -331,7 +331,7 @@ test('createGameState: 決定的な入力から一貫した初期状態を作る
 
 - [ ] **Step 2: テストを実行して失敗を確認する**
 
-Run: `node --test tests/`
+Run: `node --test tests/logic.test.js`
 Expected: FAIL（`createGameState is not a function`）
 
 - [ ] **Step 3: `logic.js`に実装を追加する**
@@ -361,7 +361,7 @@ function createGameState(settings, randomFn, shuffleFn) {
 
 - [ ] **Step 4: テストを実行して成功を確認する**
 
-Run: `node --test tests/`
+Run: `node --test tests/logic.test.js`
 Expected: PASS
 
 - [ ] **Step 5: コミット**
@@ -478,7 +478,7 @@ test('applyPlay: 両者とも出せない状態になったら合成数が強制
 
 - [ ] **Step 2: テストを実行して失敗を確認する**
 
-Run: `node --test tests/`
+Run: `node --test tests/logic.test.js`
 Expected: FAIL（`canPlay is not a function` など）
 
 - [ ] **Step 3: `logic.js`に実装を追加する**
@@ -570,7 +570,7 @@ function applyPlay(state, playerIndex, value, randomFn = Math.random) {
 
 - [ ] **Step 4: テストを実行して成功を確認する**
 
-Run: `node --test tests/`
+Run: `node --test tests/logic.test.js`
 Expected: PASS（全テスト）
 
 - [ ] **Step 5: コミット**
@@ -1075,7 +1075,7 @@ git commit -m "feat: wire up card play interaction and game over flow"
 
 - [ ] **Step 1: 単体テストを一括実行する**
 
-Run: `node --test tests/`
+Run: `node --test tests/logic.test.js`
 Expected: PASS（全テスト）
 
 - [ ] **Step 2: ローカルサーバーでブラウザ実機確認する**
@@ -1094,4 +1094,176 @@ python3 -m http.server 8000
 ```bash
 git add -A
 git commit -m "chore: final manual verification pass" --allow-empty
+```
+
+---
+
+### Task 12: 詰み合成数のスキップ（デッドロック修正）
+
+**背景:** Task 11の手動プレイテストで、`createGameState`の初期合成数選択と`applyPlay`の合成数切り替え(`cleared`/`stuck`分岐)が、選んだ新しい合成数を「どちらのプレイヤーの手札でも1枚も出せない」状態のまま確定してしまうことが判明した。この場合、`bothStuck`は次にプレイが起きたときにしか評価されないため、両者とも出せるカードが無い＝プレイが二度と起きない＝ゲームが永久に停止する。これは実装のバグではなく元の設計(仕様書・計画書)の抜けであり、`logic.js`のコア関数を修正する必要がある。
+
+**Files:**
+- Modify: `logic.js`
+- Modify: `tests/logic.test.js`
+
+**Interfaces:**
+- Consumes: `pickNextComposite`, `factorizeWithAllowedPrimes`, `bothStuck`, `PRIMES`（既存）
+- Produces: `pickPlayableComposite(compositePool, previous, hand0, hand1, randomFn) -> { composite, remaining }`
+- Modifies: `createGameState`（初期合成数選択に`pickPlayableComposite`を使う）、`applyPlay`（cleared/stuck分岐で`pickPlayableComposite`を使う）
+
+- [ ] **Step 1: 失敗するテストを書く**
+
+`tests/logic.test.js` に追記:
+
+```js
+const { pickPlayableComposite } = require('../logic.js');
+
+test('pickPlayableComposite: 最初の候補がどちらの手札でも出せない場合、出せる候補まで進める', () => {
+  // pool=[4,6,9]。previous=null。
+  // randomFnを () => 0 に固定すると pickNextComposite は毎回「候補配列の先頭」を返す。
+  // 1回目: candidates=[4,6,9](previousはnullなので除外なし) -> 4 (factors {2:2})
+  //   hand0=[3,3], hand1=[3,3] は2を持たないので bothStuck(hand0,hand1,{2:2}) === true -> 4はスキップ
+  // 2回目: candidates=[6,9](4を除外) -> 6 (factors {2:1,3:1})
+  //   hand0=[3,3] は3を持つので bothStuck は false -> 6を採用
+  const result = pickPlayableComposite([4, 6, 9], null, [3, 3], [3, 3], () => 0);
+  assert.equal(result.composite, 6);
+  assert.deepEqual(result.remaining, { 2: 1, 3: 1 });
+});
+
+test('pickPlayableComposite: 最初から出せる候補ならそれを返す', () => {
+  const result = pickPlayableComposite([4, 6, 9], null, [2, 2], [2, 2], () => 0);
+  assert.equal(result.composite, 4);
+  assert.deepEqual(result.remaining, { 2: 2 });
+});
+
+test('createGameState: 初期合成数は必ずどちらかの手札で出せるものになる(デッドロック防止)', () => {
+  // countPerPrime: 3のみ29枚(28枚山札+STOP、5枚配って残り24枚)。
+  // maxComposite=10で作られるcompositePool=[4,6,8,9,10]のうち、
+  // 3を含まない4,8はどちらの手札(全て3)でも出せないはずなので、
+  // pickPlayableComposite が 6 か 9 のどちらかまでスキップしないといけない。
+  const settings = { maxComposite: 10, countPerPrime: { 3: 29 } };
+  const identity = (arr) => arr;
+  const state = createGameState(settings, () => 0, identity);
+  assert.ok([6, 9].includes(state.composite), `composite ${state.composite} should be playable by an all-3s hand`);
+});
+```
+
+- [ ] **Step 2: テストを実行して失敗を確認する**
+
+Run: `node --test tests/logic.test.js`
+Expected: FAIL（`pickPlayableComposite is not a function`、および`createGameState`のテストは現行実装だと`state.composite`が4になり失敗する）
+
+- [ ] **Step 3: `logic.js`に`pickPlayableComposite`を追加し、`createGameState`と`applyPlay`から使うように変更する**
+
+`pickNextComposite`の定義の直後（`fisherYatesShuffle`の前）に追加:
+
+```js
+function pickPlayableComposite(compositePool, previous, hand0, hand1, randomFn) {
+  let candidate = previous;
+  let remaining;
+  const maxAttempts = compositePool.length;
+  let attempts = 0;
+  do {
+    candidate = pickNextComposite(compositePool, candidate, randomFn);
+    remaining = factorizeWithAllowedPrimes(candidate, PRIMES);
+    attempts += 1;
+  } while (bothStuck(hand0, hand1, remaining) && attempts < maxAttempts);
+  return { composite: candidate, remaining };
+}
+```
+
+`createGameState`内の該当部分を置き換える:
+
+```js
+  const composite = pickNextComposite(compositePool, null, randomFn);
+  const remaining = factorizeWithAllowedPrimes(composite, primes);
+```
+を
+```js
+  const { composite, remaining } = pickPlayableComposite(
+    compositePool,
+    null,
+    players[0].hand,
+    players[1].hand,
+    randomFn
+  );
+```
+に置き換える。
+
+`applyPlay`内の該当部分を置き換える:
+
+```js
+    const nextComposite = pickNextComposite(state.compositePool, state.composite, randomFn);
+    const nextRemaining = factorizeWithAllowedPrimes(nextComposite, PRIMES);
+    return {
+      ...state,
+      players: updatedPlayers,
+      composite: nextComposite,
+      remaining: nextRemaining,
+      previousComposite: state.composite,
+      winner: null,
+    };
+```
+を
+```js
+    const { composite: nextComposite, remaining: nextRemaining } = pickPlayableComposite(
+      state.compositePool,
+      state.composite,
+      finalHand,
+      otherHand,
+      randomFn
+    );
+    return {
+      ...state,
+      players: updatedPlayers,
+      composite: nextComposite,
+      remaining: nextRemaining,
+      previousComposite: state.composite,
+      winner: null,
+    };
+```
+に置き換える。
+
+`pickPlayableComposite`は`bothStuck`・`factorizeWithAllowedPrimes`より後、かつ`createGameState`・`applyPlay`より前に定義する必要がある(呼び出し順ではなく`function`宣言はホイストされるので実際にはファイル内のどこに置いても動くが、可読性のため`pickNextComposite`の直後に置く)。`module.exports`に`pickPlayableComposite,`を追加する。
+
+- [ ] **Step 4: テストを実行して成功を確認する**
+
+Run: `node --test tests/logic.test.js`
+Expected: PASS（全テスト。既存のcreateGameStateテスト「決定的な入力から一貫した初期状態を作る」は`countPerPrime: {2:3, 3:2}`かつ`maxComposite:10`で最初の候補(4, factors{2:2})が両手札とも2を持つため元々出せるので、この修正後も変わらずPASSする）
+
+- [ ] **Step 5: コミット**
+
+```bash
+git add logic.js tests/logic.test.js
+git commit -m "fix: skip composites that neither hand can play to prevent deadlock"
+```
+
+---
+
+### Task 13: 修正後の最終手動確認（Playwrightでの通しプレイ）
+
+**Files:** なし（変更なし、確認のみ）
+
+- [ ] **Step 1: 単体テストを一括実行する**
+
+Run: `node --test tests/logic.test.js`
+Expected: PASS（全テスト）
+
+- [ ] **Step 2: ローカルサーバー + ヘッドレスブラウザで通しプレイを確認する**
+
+`python3 -m http.server 8123 --directory <project-dir>` でサーバーを起動し、Playwright（`npx playwright`、ブラウザは`chromium`）でタイトル→設定→対戦開始→（合成数の切り替えを複数回観測しながら）カードをクリックし続け→STOPを引いたプレイヤーの勝利画面→「もう一度」でタイトルに戻る、までの一連の流れをスクリプトで自動操作して確認する。
+
+確認項目:
+- 手札は常に5枚(ゲーム終了直前を除く)
+- 合成数の切り替えが最低1回は観測される
+- どちらの手札にも出せるカードが無いまま止まる状態(デッドロック)が発生しない
+- 最終的にStopカードを引いたプレイヤーの勝利画面が表示される
+- コンソールエラーが出ない
+- 「もう一度」でタイトル画面に戻る
+
+- [ ] **Step 3: 最終コミット**
+
+```bash
+git add -A
+git commit -m "chore: verify deadlock fix with full playthrough" --allow-empty
 ```
