@@ -1388,3 +1388,205 @@ function startGame() {
 git add logic.js tests/logic.test.js game.js
 git commit -m "fix: ensure maxComposite is large enough for every prime in the deck to prevent dead-card deadlock"
 ```
+
+---
+
+### Task 15: 最終レビュー指摘の解消（第三のデッドロック・テスト不備・仕様書の乖離）
+
+**背景:** 全ブランチの最終レビューで3件のImportant指摘が見つかった。
+
+1. **山札の総枚数が手札枚数(5)未満だと、初期配布でStopカードがそのまま初手札に混入し、山札が空になる。** `buildDeck`は常にシャッフル後の実カード列の末尾に`'STOP'`を1枚追加するが、`dealHand`は先頭`HAND_SIZE`枚を無条件に手札へ切り出す。実カード枚数の合計が4枚以下だと、配列全体(実カード+STOP)が5枚以下になり、`'STOP'`が手札の中に入った状態で配布されてしまう。以降`applyPlay`の`drawOne`で`'STOP'`を引く処理が一度も起きないため誰も勝てず、かつ山札が空なので手札も増えず、`bothStuck`が恒久的にtrueのまま合成数を切り替え続けても手札の中身が変わらないため実質的に永久停止する。設定画面の各カード枚数入力は`min="0"`であり、UIから2クリックで到達可能。
+2. **`applyPlay`の「両者とも出せなくなったら合成数を強制的に切り替える」分岐が、実際には一度も`applyPlay`経由でテストされていない。** 既存テストは`bothStuck()`を直接呼んで真偽を確認しているだけで、`applyPlay`自体は呼ばれていない(この分岐は既存の`hasAnyPlayable`用テストと重複しているだけ)。
+3. **Task12の回帰テスト(`pickPlayableComposite`のretry-loopバグ再現ケース)が、実際には修正前のバグを再現できていない。** `randomFn = () => 0`という定数の乱数関数を使っているが、たまたまこの特定のpool`[4,6,8]`・この乱数値では、修正前のretry-loopアルゴリズムでも(1回目の失敗候補`4`を除外した2回目の試行で偶然)正解の`6`にたどり着いてしまうため、新旧どちらのアルゴリズムでもテストが通ってしまい、テストとして意味を成していない。
+
+**Files:**
+- Modify: `logic.js`
+- Modify: `tests/logic.test.js`
+- Modify: `game.js`
+- Modify: `index.html`
+- Modify: `docs/superpowers/specs/2026-08-30-prime-speed-design.md`
+
+**Interfaces:**
+- Consumes: `HAND_SIZE`, `PRIMES`, `DEFAULT_COUNT_PER_PRIME`（既存）
+- Modifies: `game.js`の`startGame()`（山札総枚数チェックを追加し、あわせて既に到達不能になっている`pool.length === 0`の防御分岐を削除して整理する）
+- Produces: `index.html`に`#screen-game`用の「タイトルに戻る」ボタン(`button-QUIT_TO_TITLE`)を追加
+
+- [ ] **Step 1: 失敗するテストを書く（山札総枚数チェック用の関数は既存の`startGame`ロジックの一部として`logic.js`には追加しない — 単純な合計計算のみなのでgame.js内に直接書く。ここでは代わりに`applyPlay`のstuck分岐テストと、Task12回帰テストの差し替えを行う）**
+
+`tests/logic.test.js`の既存テストを次のように**差し替える**（`test('applyPlay: 両者とも出せない状態になったら合成数が強制的に切り替わる', ...)`という同名のテストを丸ごと置き換える）:
+
+```js
+test('applyPlay: 両者とも出せない状態になったら合成数が強制的に切り替わる', () => {
+  const state = makeState({
+    players: [
+      { hand: [2, 7, 7, 7, 7], deck: [7, 'STOP'] },
+      { hand: [11, 11, 11, 11, 11], deck: [11, 'STOP'] },
+    ],
+    composite: 60,
+    remaining: { 2: 1, 3: 1 },
+    compositePool: [60, 21],
+  });
+  // Aが2を出すと remaining は {3:1} になるが、
+  // Aの手札は2を出して7を引いた後 [7,7,7,7,7]、Bの手札は [11,11,11,11,11] で
+  // どちらも3を出せない(bothStuck)ため、21(=3×7)への強制切り替えが起きるはず。
+  // 21ならAの手札(7を含む)で出せる。
+  const result = applyPlay(state, 0, 2, () => 0);
+  assert.equal(result.composite, 21);
+  assert.equal(result.previousComposite, 60);
+  assert.deepEqual(result.remaining, { 3: 1, 7: 1 });
+});
+```
+
+同じく`tests/logic.test.js`内の、Task12で追加した以下のテストを**差し替える**（`test('pickPlayableComposite: プール内に出せる候補が1つしかなくても必ず見つける(retry-loop版の既知バグの再現ケース)', ...)`という同名のテストを丸ごと置き換える）:
+
+```js
+test('pickPlayableComposite: プール内に出せる候補が1つしかない場合、乱数の並びに関わらず必ずそれを返す(retry-loop版なら見逃しうるケース)', () => {
+  let calls = 0;
+  const sequence = [0, 0.6, 0]; // 修正前のretry-loopならこの乱数列で 4→8→4 と巡り、6に一度も到達できない
+  const randomFn = () => sequence[calls++];
+  const result = pickPlayableComposite([4, 6, 8], null, [3, 3], [3, 3], randomFn);
+  assert.equal(result.composite, 6);
+  assert.deepEqual(result.remaining, { 2: 1, 3: 1 });
+});
+```
+
+- [ ] **Step 2: テストを実行して(差し替えた2件について)正しく検証できることを確認する**
+
+Run: `node --test tests/logic.test.js`
+Expected: PASS（全30テスト。差し替えた2件も含めて全て通る。手計算で事前検証済み: `applyPlay(state,0,2,()=>0)`は`composite:21, previousComposite:60, remaining:{3:1,7:1}`を返す）
+
+- [ ] **Step 3: `game.js`の`startGame()`を修正し、山札総枚数チェックと不要になった防御分岐の削除、合成数最大値のクランプを行う**
+
+既存の`startGame()`本体（Task14修正後）:
+
+```js
+function startGame() {
+  settings = readSettingsFromInputs();
+  const minRequired = minimumMaxCompositeFor(settings.countPerPrime, PRIMES);
+  if (settings.maxComposite < minRequired) {
+    settings.maxComposite = minRequired;
+    document.getElementById('max-composite').value = settings.maxComposite;
+    alert(`合成数の最大値が、山札の素数構成に対して小さすぎたため、${minRequired}に引き上げました。`);
+  }
+  let pool = enumerateComposites(settings.maxComposite, PRIMES);
+  if (pool.length === 0) {
+    settings.maxComposite = 4;
+    pool = enumerateComposites(settings.maxComposite, PRIMES);
+    document.getElementById('max-composite').value = settings.maxComposite;
+    alert('合成数の最大値が小さすぎたため、4に引き上げました。');
+  }
+  gameState = createGameState(settings, Math.random, fisherYatesShuffle);
+  showScreen('screen-game');
+  renderGame();
+}
+```
+
+を次のように置き換える:
+
+```js
+function startGame() {
+  settings = readSettingsFromInputs();
+
+  const totalCards = PRIMES.reduce((sum, p) => sum + (settings.countPerPrime[p] || 0), 0);
+  if (totalCards < HAND_SIZE) {
+    settings.countPerPrime = { ...DEFAULT_COUNT_PER_PRIME };
+    writeSettingsToInputs();
+    alert(`カードの総数が手札の枚数(${HAND_SIZE}枚)に満たないため、デッキ構成をデフォルトに戻しました。`);
+  }
+
+  const minRequired = minimumMaxCompositeFor(settings.countPerPrime, PRIMES);
+  if (settings.maxComposite < minRequired) {
+    settings.maxComposite = minRequired;
+    document.getElementById('max-composite').value = settings.maxComposite;
+    alert(`合成数の最大値が、山札の素数構成に対して小さすぎたため、${minRequired}に引き上げました。`);
+  }
+
+  gameState = createGameState(settings, Math.random, fisherYatesShuffle);
+  showScreen('screen-game');
+  renderGame();
+}
+```
+
+（`totalCards < HAND_SIZE`をmaxComposite側のチェックより先に行うことで、`countPerPrime`が確定してから`minimumMaxCompositeFor`を計算する順序になる。`pool.length === 0`の防御分岐は、`minRequired`の保証により数学的に到達不能であることがTask14のレビューで証明済みなので削除する。`enumerateComposites`をここで直接呼ぶ必要が無くなるため、二重計算も解消される）
+
+`readSettingsFromInputs()`内の`maxComposite`読み取り行を次のように変更し、極端に大きい値の入力による`enumerateComposites`の実行時間肥大化を防ぐ:
+
+既存:
+```js
+  const maxComposite = Number(document.getElementById('max-composite').value) || DEFAULT_MAX_COMPOSITE;
+```
+変更後:
+```js
+  const rawMaxComposite = Number(document.getElementById('max-composite').value) || DEFAULT_MAX_COMPOSITE;
+  const maxComposite = Math.min(rawMaxComposite, 100000);
+```
+
+- [ ] **Step 4: `index.html`の`#max-composite`入力に上限を設定し、ゲーム画面に「タイトルに戻る」ボタンを追加する**
+
+`index.html`内の該当行:
+```html
+<label class="setting-row" for="max-composite"><span>合成数の最大値</span><input id="max-composite" type="number" min="4" value="1100" /></label>
+```
+を次のように変更する:
+```html
+<label class="setting-row" for="max-composite"><span>合成数の最大値</span><input id="max-composite" type="number" min="4" max="100000" value="1100" /></label>
+```
+
+`#screen-game`の開始タグ直後に、タイトルへ戻るボタンを追加する:
+```html
+<section id="screen-game" hidden>
+  <button class="menu-button" id="button-QUIT_TO_TITLE">タイトルに戻る</button>
+  <div class="hand-row" id="hand-player2"></div>
+  ...
+```
+
+- [ ] **Step 5: `game.js`に「タイトルに戻る」ボタンのイベントリスナーを追加する**
+
+`game.js`の末尾に追加:
+```js
+document.getElementById('button-QUIT_TO_TITLE').addEventListener('click', () => showScreen('screen-title'));
+```
+
+- [ ] **Step 6: ブラウザで手動確認する**
+
+設定画面で全ての素数の枚数を0にしてから対戦開始すると、「デッキ構成をデフォルトに戻しました」というアラートが出て、デフォルト設定(各6枚)で対戦が始まることを確認する。ゲーム画面の「タイトルに戻る」ボタンでいつでもタイトルに戻れることを確認する。
+
+- [ ] **Step 7: 仕様書を更新する**
+
+`docs/superpowers/specs/2026-08-30-prime-speed-design.md`の「ファイル構成」「合成数プールの列挙」「次の合成数を選ぶ」「エッジケース」の各節を、実装された`logic.js`(素因数分解ロジックを保持する独立ファイル)・`pickPlayableComposite`(出せる合成数だけに絞ってから選ぶ)・`minimumMaxCompositeFor`(山札の素数構成に対して合成数の最大値が小さすぎる場合の自動引き上げ)・山札総枚数チェック、を反映した内容に更新する。
+
+- [ ] **Step 8: 全テストを実行して成功を確認する**
+
+Run: `node --test tests/logic.test.js`
+Expected: PASS（全30テスト）
+
+- [ ] **Step 9: コミット**
+
+```bash
+git add logic.js tests/logic.test.js game.js index.html docs/superpowers/specs/2026-08-30-prime-speed-design.md
+git commit -m "fix: prevent STOP-in-opening-hand deadlock, strengthen deadlock regression tests, update spec"
+```
+
+---
+
+### Task 16: 最終手動確認（第三のデッドロック修正の通しプレイ）
+
+**Files:** なし（変更なし、確認のみ）
+
+- [ ] **Step 1: 単体テストを一括実行する**
+
+Run: `node --test tests/logic.test.js`
+Expected: PASS（全30テスト）
+
+- [ ] **Step 2: Playwrightで以下を確認する**
+
+- 全素数の枚数を0にして対戦開始 → デフォルトへのリセットのアラートが出て、正常にゲームが始まり、最後までデッドロックせずにプレイできる
+- ゲーム画面の「タイトルに戻る」ボタンでタイトルに戻れる
+- 通常設定(デフォルト、または合成数の最大値を意図的に小さくした設定)での通しプレイが引き続き正常に完走する(Task13の確認内容の再確認)
+
+- [ ] **Step 3: 最終コミット**
+
+```bash
+git add -A
+git commit -m "chore: final verification after last review round" --allow-empty
+```
