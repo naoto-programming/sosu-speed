@@ -4,6 +4,7 @@ const DEFAULT_COUNT_PER_PRIME = { 2: 6, 3: 6, 5: 6, 7: 6, 11: 6 };
 const HAND_SIZE = 5;
 
 function factorizeWithAllowedPrimes(n, primes) {
+  if (n < 1) return null;
   let remaining = n;
   const factors = {};
   for (const p of primes) {

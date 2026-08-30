@@ -15,6 +15,10 @@ test('factorizeWithAllowedPrimes: 13 は許可された素数だけでは分解�
   assert.equal(factorizeWithAllowedPrimes(13, PRIMES), null);
 });
 
+test('factorizeWithAllowedPrimes: 0 は無効', () => {
+  assert.equal(factorizeWithAllowedPrimes(0, PRIMES), null);
+});
+
 test('factorizeWithAllowedPrimes: 7 は素数自身として分解される', () => {
   assert.deepEqual(factorizeWithAllowedPrimes(7, PRIMES), { 7: 1 });
 });
