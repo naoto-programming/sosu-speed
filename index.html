@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>素数スピード</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@500;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <section id="screen-title">
+    <h1 class="title">素数スピード</h1>
+    <div class="button-wrapper">
+      <button class="menu-button" id="button-START">対戦開始</button>
+      <button class="menu-button" id="button-SETTINGS">設定</button>
+    </div>
+  </section>
+
+  <section id="screen-settings" hidden>
+    <h2 class="title">設定</h2>
+    <div class="settings-grid">
+      <label class="setting-row" for="count-2"><span>2 の枚数</span><input id="count-2" type="number" min="0" value="6" /></label>
+      <label class="setting-row" for="count-3"><span>3 の枚数</span><input id="count-3" type="number" min="0" value="6" /></label>
+      <label class="setting-row" for="count-5"><span>5 の枚数</span><input id="count-5" type="number" min="0" value="6" /></label>
+      <label class="setting-row" for="count-7"><span>7 の枚数</span><input id="count-7" type="number" min="0" value="6" /></label>
+      <label class="setting-row" for="count-11"><span>11 の枚数</span><input id="count-11" type="number" min="0" value="6" /></label>
+      <label class="setting-row" for="max-composite"><span>合成数の最大値</span><input id="max-composite" type="number" min="4" value="1100" /></label>
+    </div>
+    <div class="button-wrapper">
+      <button class="menu-button" id="button-RESET_DEFAULTS">デフォルトに戻す</button>
+      <button class="menu-button" id="button-START_FROM_SETTINGS">対戦開始</button>
+      <button class="menu-button" id="button-BACK_TO_TITLE">戻る</button>
+    </div>
+  </section>
+
+  <section id="screen-game" hidden>
+    <div class="hand-row" id="hand-player2"></div>
+    <div class="deck-count" id="deck-count-player2"></div>
+
+    <div class="field">
+      <div class="composite" id="field-composite"></div>
+      <div class="remaining-chips" id="field-remaining"></div>
+    </div>
+
+    <div class="deck-count" id="deck-count-player1"></div>
+    <div class="hand-row" id="hand-player1"></div>
+  </section>
+
+  <section id="screen-gameover" hidden>
+    <h1 class="title" id="gameover-winner"></h1>
+    <div class="button-wrapper">
+      <button class="menu-button" id="button-RESTART">もう一度</button>
+    </div>
+  </section>
+
+  <script src="logic.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
